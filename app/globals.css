@@ -14,7 +14,7 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin: 0; background: var(--canvas); color: var(--ink); font-family: Arial, "Noto Sans TC", sans-serif; letter-spacing: 0; }
-button, input, select { font: inherit; }
+button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 
 .loading-screen { display: grid; min-height: 100dvh; place-content: center; justify-items: center; gap: 12px; color: var(--brand); }
@@ -159,6 +159,45 @@ button { cursor: pointer; }
 .inline-form { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: white; }
 .inline-form button { width: 100%; min-height: 50px; }
 .simple-fields { display: grid; gap: 10px; }
+
+.decision-shell { padding-bottom: 44px; }
+.decision-hero { display: grid; gap: 8px; padding: 18px 0 14px; }
+.decision-hero p, .decision-hero h1, .decision-hero span { margin: 0; }
+.decision-hero p { color: var(--brand-strong); font-size: 13px; font-weight: 900; }
+.decision-hero h1 { font-size: 31px; line-height: 1.12; }
+.decision-hero span { color: var(--muted); font-size: 14px; line-height: 1.5; }
+.primary-command { display: inline-flex; width: 100%; min-height: 54px; align-items: center; justify-content: center; gap: 8px; margin-top: 8px; border: 0; border-radius: 8px; background: var(--brand); color: white; font-size: 17px; font-weight: 900; }
+.primary-command svg { width: 21px; }
+.decision-section { display: grid; gap: 10px; margin-top: 22px; }
+.decision-heading { margin-bottom: 0; }
+.decision-heading-icon { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 8px; background: var(--brand-soft); color: var(--brand); }
+.decision-heading-icon svg { width: 20px; }
+.journey-list { display: grid; gap: 10px; }
+.journey-card { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: white; }
+.journey-rank { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 8px; background: var(--brand); color: white; font-size: 18px; font-weight: 900; }
+.journey-main { display: grid; min-width: 0; gap: 10px; }
+.journey-topline { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.journey-topline strong { font-size: 19px; }
+.journey-topline span { flex: 0 0 auto; color: var(--brand-strong); font-size: 12px; font-weight: 900; }
+.journey-card dl { display: grid; gap: 8px; margin: 0; }
+.journey-card dl div { display: grid; gap: 2px; }
+.journey-card dt { color: var(--muted); font-size: 11px; font-weight: 900; }
+.journey-card dd { margin: 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.journey-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.journey-footer span, .journey-footer em { padding: 4px 7px; border-radius: 5px; background: #f1f5f2; color: var(--brand-strong); font-size: 12px; font-style: normal; font-weight: 900; }
+.journey-footer button { display: inline-flex; min-height: 36px; align-items: center; gap: 5px; padding: 0 10px; border: 1px solid #b9d4c1; border-radius: 7px; background: var(--brand-soft); color: var(--brand-strong); font-weight: 900; }
+.journey-footer button svg { width: 16px; }
+.compact-list { display: grid; gap: 8px; }
+.compact-card { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: white; }
+.compact-card strong { font-size: 16px; }
+.compact-card span { color: var(--brand-strong); font-size: 13px; font-weight: 900; }
+.compact-card small { color: var(--muted); line-height: 1.45; }
+.inbox-summary .inbox-entry { background: white; }
+.bottom-sheet select, .bottom-sheet textarea { width: 100%; border: 1px solid #bcc8bf; border-radius: 7px; background: white; font-size: 16px; }
+.bottom-sheet select { min-height: 54px; padding: 0 13px; }
+.bottom-sheet textarea { min-height: 170px; padding: 12px 13px; resize: vertical; line-height: 1.55; }
+.inbox-compose { display: grid; gap: 12px; }
+.inbox-compose p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 
 @media (min-width: 760px) {
   .app-shell { padding-inline: 28px; }

@@ -1,54 +1,28 @@
-export type TaskStatus = "must" | "suggested" | "waiting" | "done";
-export type ModuleKey = "dashboard" | "buyer" | "seller" | "housing" | "inbox";
+export type JourneyKind = "屋主旅程" | "案件旅程" | "買方旅程" | "出租旅程";
+export type JourneyStatus = "active" | "waiting" | "done";
+export type PriorityEventKind = "收斡旋" | "見面談" | "今天交屋" | "今天簽約" | "屋主等待回覆" | "買方等待回覆";
+export type WaitingKind = "等待屋主" | "等待買方" | "等待貸款" | "等待代書" | "等待租客";
 
-export interface Task {
+export interface JourneyCard {
   id: string;
-  title: string;
-  detail: string;
-  dueDate?: string;
-  time?: string;
-  status: TaskStatus;
-  previousStatus?: Exclude<TaskStatus, "done">;
-  module: ModuleKey;
-  priority: number;
+  person: string;
+  journey: JourneyKind;
+  stage: string;
+  nextStep: string;
+  reason: string;
+  risk: string;
+  estimatedDealValue: string;
+  priorityScore: number;
+  eventKind?: PriorityEventKind;
+  waitingKind?: WaitingKind;
+  status: JourneyStatus;
   completedAt?: string;
-  delayedAt?: string;
 }
 
-export interface Buyer {
+export interface AiInboxItem {
   id: string;
-  name: string;
-  need: string;
-  lastContactDate: string;
-  nextFollowUpDate: string;
-  chatUrl: string;
-  note: string;
-}
-
-export interface Seller {
-  id: string;
-  name: string;
-  listingStatus: string;
-  need: string;
-  nextContactDate: string;
-  note: string;
-}
-
-export interface HousingCase {
-  id: string;
-  tenant: string;
-  landlord: string;
-  item: string;
-  date: string;
-  status: string;
-  note: string;
-}
-
-export interface InboxItem {
-  id: string;
-  source: string;
-  title: string;
-  content: string;
+  source: "ChatGPT" | "Gemini" | "Claude" | "Codex" | "其他";
+  summary: string;
   createdAt: string;
-  convertedTaskId?: string;
+  synced: boolean;
 }

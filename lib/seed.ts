@@ -1,34 +1,80 @@
-import type { Buyer, HousingCase, InboxItem, Seller, Task } from "./types";
+import type { AiInboxItem, JourneyCard } from "./types";
 
-const today = new Date().toLocaleDateString("sv-SE");
-
-function addDays(days: number) {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  return date.toLocaleDateString("sv-SE");
-}
-
-export const seedTasks: Task[] = [
-  { id: "must-1", title: "今天帶看中泰宏國", detail: "出門前確認鑰匙與客戶時間", dueDate: today, time: "11:30", status: "must", module: "buyer", priority: 1 },
-  { id: "must-2", title: "回覆屋主價格討論", detail: "整理近三筆成交與目前競品", dueDate: today, time: "14:00", status: "must", module: "seller", priority: 2 },
-  { id: "suggest-1", title: "追蹤三天未回覆買方", detail: "用 LINE 關心需求是否有變", dueDate: today, status: "suggested", module: "buyer", priority: 3 },
-  { id: "waiting-1", title: "等待修繕廠商報價", detail: "收到後回覆房東與租客", dueDate: today, status: "waiting", module: "housing", priority: 4 },
+export const seedJourneys: JourneyCard[] = [
+  {
+    id: "journey-1",
+    person: "Claire",
+    journey: "買方旅程",
+    stage: "第二次看屋",
+    nextStep: "確認 7/14 上午 10 點看屋",
+    reason: "需求明確、預算明確，成交率 82%，今天推進最有機會成交。",
+    risk: "如果今天沒有確認時間，客戶可能被其他物件吸走。",
+    estimatedDealValue: "約 1,500 萬買方機會",
+    priorityScore: 98,
+    eventKind: "見面談",
+    status: "active",
+  },
+  {
+    id: "journey-2",
+    person: "王屋主",
+    journey: "屋主旅程",
+    stage: "委託前",
+    nextStep: "再次拜訪，確認是否願意委託",
+    reason: "已經 7 天未聯絡，接近委託關鍵期。",
+    risk: "如果今天不跟進，可能委託給別家。",
+    estimatedDealValue: "約 1,200 萬委售機會",
+    priorityScore: 94,
+    eventKind: "屋主等待回覆",
+    waitingKind: "等待屋主",
+    status: "waiting",
+  },
+  {
+    id: "journey-3",
+    person: "宏昌六街案",
+    journey: "案件旅程",
+    stage: "買方詢問",
+    nextStep: "確認屋主底價，準備回覆買方",
+    reason: "已有買方詢問，價格明確後就能推進出價。",
+    risk: "價格不明會卡住買方決策。",
+    estimatedDealValue: "約 998 萬案件機會",
+    priorityScore: 90,
+    eventKind: "買方等待回覆",
+    waitingKind: "等待買方",
+    status: "waiting",
+  },
+  {
+    id: "journey-4",
+    person: "林先生",
+    journey: "買方旅程",
+    stage: "第一次看屋後",
+    nextStep: "傳 3 間符合條件物件",
+    reason: "需求剛更新，現在回覆最容易建立信任。",
+    risk: "回覆太慢會降低信任感。",
+    estimatedDealValue: "約 1,000 萬買方機會",
+    priorityScore: 82,
+    status: "active",
+  },
+  {
+    id: "journey-5",
+    person: "張先生",
+    journey: "買方旅程",
+    stage: "貸款確認",
+    nextStep: "追蹤銀行貸款進度",
+    reason: "貸款進度會直接影響簽約時間。",
+    risk: "如果貸款卡住，成交時程會延後。",
+    estimatedDealValue: "約 1,350 萬簽約機會",
+    priorityScore: 80,
+    waitingKind: "等待貸款",
+    status: "waiting",
+  },
 ];
 
-export const seedBuyers: Buyer[] = [
-  { id: "buyer-1", name: "王先生", need: "桃園區三房，1000萬內，近學區", lastContactDate: addDays(-4), nextFollowUpDate: today, chatUrl: "", note: "偏好低總價、採光佳" },
-  { id: "buyer-2", name: "林小姐", need: "南崁兩房車，首購自住", lastContactDate: addDays(-1), nextFollowUpDate: addDays(2), chatUrl: "", note: "可接受屋齡 20 年內" },
-];
-
-export const seedSellers: Seller[] = [
-  { id: "seller-1", name: "陳屋主", listingStatus: "委售中", need: "希望一個月內有明確出價", nextContactDate: today, note: "先回報本週詢問量" },
-];
-
-export const seedHousing: HousingCase[] = [
-  { id: "housing-1", tenant: "張租客", landlord: "黃房東", item: "報修", date: today, status: "等待報價", note: "冷氣排水需確認" },
-  { id: "housing-2", tenant: "李租客", landlord: "吳房東", item: "公證", date: addDays(1), status: "待處理", note: "明天確認文件" },
-];
-
-export const seedInboxItems: InboxItem[] = [
-  { id: "inbox-1", source: "Codex", title: "Sprint 2 待辦", content: "把重要輸出轉成今天可執行的待辦。", createdAt: new Date().toISOString() },
+export const seedInbox: AiInboxItem[] = [
+  {
+    id: "inbox-1",
+    source: "ChatGPT",
+    summary: "Claire 成交率 82%，已約 7/14 上午 10 點看屋，需求 2~3 房車，預算 1500 萬。",
+    createdAt: new Date().toISOString(),
+    synced: true,
+  },
 ];
