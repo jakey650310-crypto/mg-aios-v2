@@ -170,12 +170,12 @@ export function CommandCenter() {
       : task));
   }
 
-  function inboxToTask(item: InboxItem) {
+  function inboxToTask(item: InboxItem, status: TaskStatus = "suggested") {
     const task = {
       ...emptyTask(),
       title: item.title,
       detail: item.content,
-      status: "suggested" as TaskStatus,
+      status,
       module: "inbox" as ModuleKey,
     };
     setTasks((current) => [task, ...current]);
@@ -362,7 +362,7 @@ function HousingModule({ cases, onChange }: { cases: HousingCase[]; onChange: (c
   </ModuleFrame>;
 }
 
-function InboxModule({ items, onChange, onCreateTask }: { items: InboxItem[]; onChange: (items: InboxItem[]) => void; onCreateTask: (item: InboxItem) => void }) {
+function InboxModule({ items, onChange, onCreateTask }: { items: InboxItem[]; onChange: (items: InboxItem[]) => void; onCreateTask: (item: InboxItem, status?: TaskStatus) => void }) {
   const [draft, setDraft] = useState({ source: "ChatGPT", title: "", content: "" });
   function addItem(event: FormEvent) {
     event.preventDefault();
@@ -372,7 +372,7 @@ function InboxModule({ items, onChange, onCreateTask }: { items: InboxItem[]; on
   }
   return <ModuleFrame title="AI Inbox" caption="ChatGPT / Gemini / Claude / Codex 的重要輸出，先收進來，再轉成待辦。">
     <form className="inline-form" onSubmit={addItem}><select value={draft.source} onChange={(event) => setDraft({ ...draft, source: event.target.value })}>{["ChatGPT", "Gemini", "Claude", "Codex"].map((name) => <option key={name}>{name}</option>)}</select><input value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="重點標題" /><input value={draft.content} onChange={(event) => setDraft({ ...draft, content: event.target.value })} placeholder="內容摘要" /><button type="submit">加入 Inbox</button></form>
-    {items.map((item) => <article className="data-card" key={item.id}><div><strong>{item.title}</strong><span>{item.content}</span><small>來源：{item.source}</small></div><div className="card-actions"><button disabled={Boolean(item.convertedTaskId)} onClick={() => onCreateTask(item)}><CirclePlus />{item.convertedTaskId ? "已建立" : "建立待辦"}</button></div></article>)}
+    {items.map((item) => <article className="data-card" key={item.id}><div><strong>{item.title}</strong><span>{item.content}</span><small>來源：{item.source}</small></div><div className="card-actions"><button disabled={Boolean(item.convertedTaskId)} onClick={() => onCreateTask(item, "must")}><CirclePlus />今日必做</button><button disabled={Boolean(item.convertedTaskId)} onClick={() => onCreateTask(item, "suggested")}><CirclePlus />建議完成</button><button disabled={Boolean(item.convertedTaskId)} onClick={() => onCreateTask(item, "waiting")}><CirclePlus />等待回覆</button></div></article>)}
   </ModuleFrame>;
 }
 
