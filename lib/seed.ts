@@ -1,4 +1,4 @@
-import type { AiInboxItem, JourneyCard } from "./types";
+import type { AiInboxItem, JourneyCard, ProductBacklogItem } from "./types";
 
 export const seedJourneys: JourneyCard[] = [
   {
@@ -76,5 +76,24 @@ export const seedInbox: AiInboxItem[] = [
     summary: "Claire 成交率 82%，已約 7/14 上午 10 點看屋，需求 2~3 房車，預算 1500 萬。",
     createdAt: new Date().toISOString(),
     synced: true,
+  },
+];
+
+export const seedProductBacklog: ProductBacklogItem[] = [
+  {
+    id: "backlog-1",
+    friction: "首頁如果出現太多資料，早上會看不出今天最該先做哪一件事。",
+    discoveredDate: "2026-07-07",
+    impact: "高",
+    solution: "首頁只保留今日最重要 TOP 5，依成交價值排序。",
+    status: "完成",
+  },
+  {
+    id: "backlog-2",
+    friction: "新功能如果沒有對應實際摩擦，容易變成多餘功能。",
+    discoveredDate: "2026-07-07",
+    impact: "高",
+    solution: "新增 Product Backlog，每個新功能都先記錄它要消除的摩擦。",
+    status: "開發中",
   },
 ];

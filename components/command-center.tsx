@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Check,
   CirclePlus,
+  ClipboardList,
   Clock3,
   Inbox,
   LoaderCircle,
@@ -12,6 +13,7 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { seedInbox, seedJourneys } from "@/lib/seed";
 import type { AiInboxItem, JourneyCard } from "@/lib/types";
@@ -118,6 +120,7 @@ export function CommandCenter() {
           <strong>MG-AIOS</strong>
           <span>AI Decision Dashboard</span>
         </div>
+        <Link className="topbar-link" href="/backlog"><ClipboardList />摩擦待辦</Link>
         <button className="icon-button" onClick={() => setShowInbox(true)} aria-label="同步 AI 摘要"><Inbox /></button>
       </header>
 

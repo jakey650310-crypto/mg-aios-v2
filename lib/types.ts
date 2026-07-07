@@ -26,3 +26,15 @@ export interface AiInboxItem {
   createdAt: string;
   synced: boolean;
 }
+
+export type ImpactLevel = "高" | "中" | "低";
+export type BacklogStatus = "待做" | "開發中" | "完成";
+
+export interface ProductBacklogItem {
+  id: string;
+  friction: string;
+  discoveredDate: string;
+  impact: ImpactLevel;
+  solution: string;
+  status: BacklogStatus;
+}

@@ -9,6 +9,10 @@ MG-AIOS 採用 Daily Build。
 
 ### 今天新增什麼
 
+- 採用 Friction Driven Development（摩擦驅動開發）。
+- 新增 Product Backlog 頁面 `/backlog`。
+- Product Backlog 可記錄摩擦點、發現日期、影響成交程度、解決方案、狀態。
+- 首頁新增「摩擦待辦」入口。
 - 首頁改為 AI Decision Dashboard。
 - 新增「今日最重要 TOP 5」，依成交價值排序。
 - 新增「高優先事件」，收斡旋、見面談、交屋、簽約、等待回覆優先顯示。
@@ -17,6 +21,8 @@ MG-AIOS 採用 Daily Build。
 
 ### 今天改善什麼
 
+- 新功能不再以功能數量為優先，而是先確認是否能消除實際使用摩擦。
+- 下一個 Daily Build 優先處理高影響摩擦。
 - 首頁不再呈現 CRM 清單或大量資料管理畫面。
 - 首頁聚焦回答：「今天要先做什麼？」
 - 每張卡片固定顯示 Person、Journey、下一步、原因、風險、預估成交價值。
@@ -24,6 +30,8 @@ MG-AIOS 採用 Daily Build。
 
 ### 下一步做什麼
 
+- 每天實際使用後，先把卡住的地方記錄成 Improvement。
+- 優先消除 Product Backlog 中「高」影響摩擦。
 - 讓 AI Inbox 貼上 ChatGPT 摘要後，更精準建立或更新 Journey。
 - 優化成交價值排序規則。
 - 增加每日版本驗收紀錄。

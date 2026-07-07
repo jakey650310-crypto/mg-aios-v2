@@ -27,6 +27,8 @@ button { cursor: pointer; }
 .brand-copy span { color: var(--muted); font-size: 12px; }
 .icon-button { display: grid; width: 44px; height: 44px; flex: 0 0 44px; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--ink); }
 .icon-button svg { width: 23px; height: 23px; }
+.topbar-link { display: inline-flex; min-height: 40px; align-items: center; gap: 5px; padding: 0 10px; border-radius: 7px; background: var(--brand-soft); color: var(--brand-strong); font-size: 13px; font-weight: 900; text-decoration: none; }
+.topbar-link svg { width: 17px; }
 
 .morning-brief { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 0 18px; }
 .morning-brief p, .module-header p { margin: 0 0 5px; color: var(--muted); font-size: 13px; }
@@ -198,6 +200,34 @@ button { cursor: pointer; }
 .bottom-sheet textarea { min-height: 170px; padding: 12px 13px; resize: vertical; line-height: 1.55; }
 .inbox-compose { display: grid; gap: 12px; }
 .inbox-compose p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+.backlog-shell { padding-bottom: 44px; }
+.backlog-hero { display: grid; gap: 8px; padding: 18px 0 14px; }
+.backlog-hero p, .backlog-hero h1, .backlog-hero span { margin: 0; }
+.backlog-hero p { color: var(--brand-strong); font-size: 13px; font-weight: 900; }
+.backlog-hero h1 { font-size: 30px; line-height: 1.13; }
+.backlog-hero span { color: var(--muted); font-size: 14px; line-height: 1.55; }
+.backlog-list { display: grid; gap: 10px; }
+.backlog-card { display: grid; gap: 12px; padding: 13px; border: 1px solid var(--line); border-left: 5px solid var(--brand); border-radius: 8px; background: white; }
+.backlog-card.impact-高 { border-left-color: #d64550; }
+.backlog-card.impact-中 { border-left-color: #d8a20c; }
+.backlog-card.impact-低 { border-left-color: #2d8b57; }
+.backlog-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.backlog-card-head strong { flex: 1; font-size: 17px; line-height: 1.45; }
+.backlog-card-head span { flex: 0 0 auto; padding: 5px 8px; border-radius: 5px; background: #f1f5f2; color: var(--brand-strong); font-size: 12px; font-weight: 900; }
+.backlog-card dl { display: grid; gap: 8px; margin: 0; }
+.backlog-card dl div { display: grid; gap: 2px; }
+.backlog-card dt { color: var(--muted); font-size: 11px; font-weight: 900; }
+.backlog-card dd { margin: 0; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.backlog-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.backlog-actions button { display: inline-flex; min-height: 42px; align-items: center; justify-content: center; gap: 5px; border: 1px solid var(--line); border-radius: 7px; background: #f7f9f7; color: var(--muted); font-weight: 900; }
+.backlog-actions button.active { border-color: #b9d4c1; background: var(--brand-soft); color: var(--brand-strong); }
+.backlog-actions svg { width: 16px; }
+.backlog-form { display: grid; gap: 12px; }
+.backlog-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.backlog-form input, .backlog-form select, .backlog-form textarea { width: 100%; border: 1px solid #bcc8bf; border-radius: 7px; background: white; font-size: 16px; }
+.backlog-form input, .backlog-form select { min-height: 54px; padding: 0 13px; }
+.backlog-form textarea { min-height: 128px; padding: 12px 13px; resize: vertical; line-height: 1.55; }
 
 @media (min-width: 760px) {
   .app-shell { padding-inline: 28px; }
