@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "MG-AIOS｜AI 房仲作戰中心",
-  description: "蔡名廣的每日 AI 房仲作戰中心",
+  description: "每天早上打開就知道今天該做什麼的 AI 房仲作戰中心",
   applicationName: "MG-AIOS",
 };
 

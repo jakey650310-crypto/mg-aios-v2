@@ -14,14 +14,14 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin: 0; background: var(--canvas); color: var(--ink); font-family: Arial, "Noto Sans TC", sans-serif; letter-spacing: 0; }
-button, input { font: inherit; }
+button, input, select { font: inherit; }
 button { cursor: pointer; }
 
 .loading-screen { display: grid; min-height: 100dvh; place-content: center; justify-items: center; gap: 12px; color: var(--brand); }
 .loading-screen svg { width: 30px; height: 30px; }
 .app-shell { width: min(1180px, 100%); min-height: 100dvh; margin: 0 auto; padding: 0 16px 112px; }
 .topbar { display: flex; height: 72px; align-items: center; gap: 11px; }
-.brand-mark { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 8px; background: var(--brand); color: white; font-size: 21px; font-weight: 900; }
+.brand-mark { display: grid; width: 40px; height: 40px; place-items: center; border: 0; border-radius: 8px; background: var(--brand); color: white; font-size: 21px; font-weight: 900; }
 .brand-copy { display: grid; flex: 1; gap: 1px; }
 .brand-copy strong { font-size: 17px; }
 .brand-copy span { color: var(--muted); font-size: 12px; }
@@ -61,6 +61,9 @@ button { cursor: pointer; }
 .task-action { display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; border: 1px solid #b9d4c1; border-radius: 50%; background: #f0f8f2; color: var(--brand); }
 .task-action svg { width: 20px; }
 .task-action.restore { border-color: var(--line); background: #f6f8f6; color: var(--muted); }
+.task-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; }
+.mini-action { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: #f7f9f7; color: var(--muted); }
+.mini-action svg { width: 17px; height: 17px; }
 .green .task-card { opacity: .72; }
 .green .task-copy strong { text-decoration: line-through; }
 .empty-state { display: flex; min-height: 68px; align-items: center; justify-content: center; gap: 8px; border: 1px dashed #cfd9d1; border-radius: 8px; color: var(--muted); font-size: 13px; }
@@ -87,7 +90,7 @@ button { cursor: pointer; }
 
 .floating-add { position: fixed; z-index: 20; right: 18px; bottom: 82px; display: flex; min-height: 50px; align-items: center; gap: 7px; padding: 0 16px; border: 0; border-radius: 25px; background: var(--brand); color: white; box-shadow: 0 8px 24px rgba(15, 77, 43, .26); font-weight: 800; }
 .floating-add svg { width: 22px; }
-.bottom-nav { position: fixed; z-index: 15; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(4, 1fr); padding: 7px 8px calc(7px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: rgba(255, 255, 255, .97); }
+.bottom-nav { position: fixed; z-index: 15; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(5, 1fr); padding: 7px 8px calc(7px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: rgba(255, 255, 255, .97); }
 .bottom-nav button { display: grid; min-height: 52px; place-items: center; gap: 3px; border: 0; background: transparent; color: var(--muted); font-size: 11px; }
 .bottom-nav button.active { color: var(--brand); font-weight: 900; }
 .bottom-nav svg { width: 21px; }
@@ -101,7 +104,7 @@ button { cursor: pointer; }
 .bottom-sheet header p { color: var(--muted); font-size: 11px; }
 .bottom-sheet header h2 { margin-top: 3px; font-size: 23px; }
 .bottom-sheet label { display: grid; gap: 7px; font-size: 13px; font-weight: 800; }
-.bottom-sheet input { width: 100%; min-height: 54px; padding: 0 13px; border: 1px solid #bcc8bf; border-radius: 7px; font-size: 16px; }
+.bottom-sheet input, .inline-form input, .inline-form select { width: 100%; min-height: 54px; padding: 0 13px; border: 1px solid #bcc8bf; border-radius: 7px; background: white; font-size: 16px; }
 .date-time-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 14px; }
 .detail-field { margin-top: 14px; }
 .choice-group { display: grid; gap: 8px; margin-top: 16px; }
@@ -132,6 +135,30 @@ button { cursor: pointer; }
 .module-quick-list svg { width: 17px; color: var(--muted); }
 .module-tasks { margin-top: 26px; }
 .module-tasks .task-card { margin-bottom: 8px; }
+
+.module-workspace { display: grid; gap: 16px; padding-top: 8px; }
+.module-title { display: flex; align-items: center; gap: 12px; }
+.module-title > div { flex: 1; }
+.module-title p, .module-title h1, .module-title span { margin: 0; }
+.module-title p { color: var(--muted); font-size: 12px; font-weight: 800; }
+.module-title h1 { margin-top: 4px; font-size: 28px; line-height: 1.15; }
+.module-title span { display: block; margin-top: 6px; color: var(--muted); font-size: 13px; }
+.module-title button, .inline-form button, .card-actions button { display: inline-flex; min-height: 42px; align-items: center; justify-content: center; gap: 6px; border: 1px solid #b9d4c1; border-radius: 7px; background: var(--brand-soft); color: var(--brand-strong); font-weight: 800; }
+.module-title button { padding: 0 12px; }
+.module-title svg, .card-actions svg { width: 17px; }
+.data-list { display: grid; gap: 10px; }
+.data-card { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: white; }
+.data-card > div:first-child { display: grid; gap: 5px; }
+.data-card strong { font-size: 17px; line-height: 1.35; }
+.data-card span { color: var(--ink); font-size: 14px; line-height: 1.45; }
+.data-card small { color: var(--muted); font-size: 12px; }
+.data-card em { width: fit-content; padding: 4px 7px; border-radius: 5px; background: #f1f5f2; color: var(--brand-strong); font-size: 12px; font-style: normal; font-weight: 800; }
+.card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.card-actions button { padding: 0 10px; }
+.card-actions button:disabled { opacity: .55; }
+.inline-form { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: white; }
+.inline-form button { width: 100%; min-height: 50px; }
+.simple-fields { display: grid; gap: 10px; }
 
 @media (min-width: 760px) {
   .app-shell { padding-inline: 28px; }
