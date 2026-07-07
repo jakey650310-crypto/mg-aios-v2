@@ -3,6 +3,14 @@ export type JourneyStatus = "active" | "waiting" | "done";
 export type PriorityEventKind = "收斡旋" | "見面談" | "今天交屋" | "今天簽約" | "屋主等待回覆" | "買方等待回覆";
 export type WaitingKind = "等待屋主" | "等待買方" | "等待貸款" | "等待代書" | "等待租客";
 
+export interface JourneyHistoryEntry {
+  id: string;
+  changedAt: string;
+  changedBy: string;
+  before: Partial<JourneyCard>;
+  after: Partial<JourneyCard>;
+}
+
 export interface JourneyCard {
   id: string;
   person: string;
@@ -13,10 +21,16 @@ export interface JourneyCard {
   risk: string;
   estimatedDealValue: string;
   priorityScore: number;
+  estimatedCloseDate?: string;
+  aiSuggestion?: string;
+  notes?: string;
   eventKind?: PriorityEventKind;
   waitingKind?: WaitingKind;
   status: JourneyStatus;
   completedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  history?: JourneyHistoryEntry[];
 }
 
 export interface AiInboxItem {

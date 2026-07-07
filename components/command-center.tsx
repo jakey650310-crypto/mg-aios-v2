@@ -6,9 +6,16 @@ import {
   CirclePlus,
   ClipboardList,
   Clock3,
+  Copy,
+  History,
   Inbox,
   LoaderCircle,
   MessageCircle,
+  Mic,
+  MoreVertical,
+  Pencil,
+  Save,
+  Trash2,
   Upload,
   Sparkles,
   TrendingUp,
@@ -17,10 +24,40 @@ import {
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { seedInbox, seedJourneys } from "@/lib/seed";
-import type { AiInboxItem, AiJourneyDraft, JourneyCard } from "@/lib/types";
+import type { AiInboxItem, AiJourneyDraft, JourneyCard, JourneyKind } from "@/lib/types";
 
 const JOURNEYS_KEY = "mgAiosDealJourneys";
 const INBOX_KEY = "mgAiosDealInbox";
+const CEO_NAME = "蔡名廣";
+
+type JourneyPatch = Partial<JourneyCard>;
+type InputType = "text" | "line" | "photo";
+type SpeechRecognitionResultLike = { transcript?: string };
+type SpeechRecognitionEventLike = { results: ArrayLike<ArrayLike<SpeechRecognitionResultLike>> };
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  onstart: (() => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  start: () => void;
+};
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
+type SpeechWindow = Window & {
+  SpeechRecognition?: SpeechRecognitionCtor;
+  webkitSpeechRecognition?: SpeechRecognitionCtor;
+};
+
+const journeyOptions: JourneyKind[] = ["買方旅程", "屋主旅程", "出租旅程", "案件旅程"];
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function todayValue() {
+  return new Date().toLocaleDateString("sv-SE");
+}
 
 function loadStorage<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -36,8 +73,22 @@ function saveStorage<T>(key: string, value: T) {
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    // Keep the dashboard usable even when localStorage is unavailable.
+    // Keep MG-AIOS usable even when localStorage is unavailable.
   }
+}
+
+function normalizeJourney(item: JourneyCard): JourneyCard {
+  return {
+    ...item,
+    priorityScore: Number(item.priorityScore) || 70,
+    estimatedDealValue: item.estimatedDealValue || "待確認成交價值",
+    estimatedCloseDate: item.estimatedCloseDate || "",
+    aiSuggestion: item.aiSuggestion || "",
+    notes: item.notes || "",
+    createdAt: item.createdAt || nowIso(),
+    updatedAt: item.updatedAt || nowIso(),
+    history: item.history || [],
+  };
 }
 
 function sortByDealValue(items: JourneyCard[]) {
@@ -48,6 +99,7 @@ function sortByDealValue(items: JourneyCard[]) {
 }
 
 function createJourneyFromDraft(draft: AiJourneyDraft): JourneyCard {
+  const createdAt = nowIso();
   return {
     id: crypto.randomUUID(),
     person: draft.person,
@@ -58,20 +110,63 @@ function createJourneyFromDraft(draft: AiJourneyDraft): JourneyCard {
     risk: draft.risk,
     estimatedDealValue: draft.estimatedDealValue,
     priorityScore: draft.priority,
+    estimatedCloseDate: "",
+    aiSuggestion: draft.summary,
+    notes: "",
     eventKind: draft.eventKind || undefined,
     waitingKind: draft.waitingKind || undefined,
     status: draft.waitingKind ? "waiting" : "active",
+    createdAt,
+    updatedAt: createdAt,
+    history: [],
+  };
+}
+
+function recordChange(before: JourneyCard, after: JourneyCard, changedBy = CEO_NAME) {
+  return {
+    ...after,
+    updatedAt: nowIso(),
+    history: [
+      {
+        id: crypto.randomUUID(),
+        changedAt: nowIso(),
+        changedBy,
+        before,
+        after,
+      },
+      ...(before.history || []),
+    ],
+  };
+}
+
+function draftFromJourney(journey: JourneyCard): AiJourneyDraft {
+  return {
+    person: journey.person,
+    journey: journey.journey,
+    stage: journey.stage,
+    priority: journey.priorityScore,
+    nextAction: journey.nextStep,
+    summary: journey.aiSuggestion || journey.notes || journey.reason,
+    reason: journey.reason,
+    risk: journey.risk,
+    estimatedDealValue: journey.estimatedDealValue,
+    eventKind: journey.eventKind || "",
+    waitingKind: journey.waitingKind || "",
+    confidence: journey.priorityScore,
   };
 }
 
 export function CommandCenter() {
   const [ready, setReady] = useState(false);
-  const [journeys, setJourneys] = useState<JourneyCard[]>(seedJourneys);
+  const [journeys, setJourneys] = useState<JourneyCard[]>(seedJourneys.map(normalizeJourney));
   const [inbox, setInbox] = useState<AiInboxItem[]>(seedInbox);
   const [showInbox, setShowInbox] = useState(false);
+  const [editingJourney, setEditingJourney] = useState<JourneyCard | null>(null);
+  const [historyJourney, setHistoryJourney] = useState<JourneyCard | null>(null);
+  const [menuJourneyId, setMenuJourneyId] = useState<string | null>(null);
 
   useEffect(() => {
-    setJourneys(loadStorage(JOURNEYS_KEY, seedJourneys));
+    setJourneys(loadStorage(JOURNEYS_KEY, seedJourneys).map(normalizeJourney));
     setInbox(loadStorage(INBOX_KEY, seedInbox));
     setReady(true);
   }, []);
@@ -79,13 +174,45 @@ export function CommandCenter() {
   useEffect(() => { if (ready) saveStorage(JOURNEYS_KEY, journeys); }, [journeys, ready]);
   useEffect(() => { if (ready) saveStorage(INBOX_KEY, inbox); }, [inbox, ready]);
 
-  const topFive = useMemo(() => sortByDealValue(journeys.filter((item) => item.status !== "done")).slice(0, 5), [journeys]);
-  const highPriority = useMemo(() => sortByDealValue(journeys.filter((item) => item.eventKind && item.status !== "done")), [journeys]);
-  const waiting = useMemo(() => sortByDealValue(journeys.filter((item) => item.waitingKind && item.status !== "done")), [journeys]);
+  const activeJourneys = useMemo(() => journeys.filter((item) => item.status !== "done"), [journeys]);
+  const topFive = useMemo(() => sortByDealValue(activeJourneys).slice(0, 5), [activeJourneys]);
+  const highPriority = useMemo(() => sortByDealValue(activeJourneys.filter((item) => item.eventKind)), [activeJourneys]);
+  const waiting = useMemo(() => sortByDealValue(activeJourneys.filter((item) => item.waitingKind)), [activeJourneys]);
   const completed = useMemo(() => journeys.filter((item) => item.status === "done").sort((a, b) => String(b.completedAt || "").localeCompare(String(a.completedAt || ""))), [journeys]);
 
+  function saveJourney(next: JourneyCard) {
+    setJourneys((current) => current.map((item) => item.id === next.id ? recordChange(item, next) : item));
+    setEditingJourney(null);
+  }
+
+  function deleteJourney(id: string) {
+    setJourneys((current) => current.filter((item) => item.id !== id));
+    setMenuJourneyId(null);
+  }
+
+  function copyJourney(id: string) {
+    const source = journeys.find((item) => item.id === id);
+    if (!source) return;
+    const copiedAt = nowIso();
+    const copyItem: JourneyCard = {
+      ...source,
+      id: crypto.randomUUID(),
+      person: `${source.person} 複製`,
+      status: "active",
+      completedAt: undefined,
+      createdAt: copiedAt,
+      updatedAt: copiedAt,
+      history: [],
+    };
+    setJourneys((current) => [copyItem, ...current]);
+    setMenuJourneyId(null);
+  }
+
   function completeJourney(id: string) {
-    setJourneys((current) => current.map((item) => item.id === id ? { ...item, status: "done", completedAt: new Date().toISOString() } : item));
+    setJourneys((current) => current.map((item) => {
+      if (item.id !== id) return item;
+      return recordChange(item, { ...item, status: "done", completedAt: nowIso() });
+    }));
   }
 
   function acceptDraft(draft: AiJourneyDraft, source: AiInboxItem["source"]) {
@@ -93,7 +220,7 @@ export function CommandCenter() {
       id: crypto.randomUUID(),
       source,
       summary: draft.summary,
-      createdAt: new Date().toISOString(),
+      createdAt: nowIso(),
       synced: true,
     };
     setInbox((current) => [inboxItem, ...current]);
@@ -111,39 +238,53 @@ export function CommandCenter() {
         <div className="brand-mark">M</div>
         <div className="brand-copy">
           <strong>MG-AIOS</strong>
-          <span>AI Decision Dashboard</span>
+          <span>Journey CRM</span>
         </div>
         <Link className="topbar-link" href="/backlog"><ClipboardList />摩擦待辦</Link>
-        <button className="icon-button" onClick={() => setShowInbox(true)} aria-label="同步 AI 摘要"><Inbox /></button>
+        <button className="icon-button" onClick={() => setShowInbox(true)} aria-label="新增 Journey"><Inbox /></button>
       </header>
 
       <section className="decision-hero">
         <p>AI 先做，人確認。</p>
         <h1>今天要先做什麼？</h1>
-        <span>依成交價值排序，先推進最接近成交的 Journey。</span>
+        <span>每張 Journey 都可新增、查看、修改、刪除與追蹤歷程。</span>
         <button className="primary-command" onClick={() => setShowInbox(true)}><CirclePlus />新增</button>
       </section>
 
       <section className="decision-section">
-        <SectionTitle icon={TrendingUp} title="今日最重要 TOP 5" count={topFive.length} hint="依成交價值排序" />
+        <SectionTitle icon={TrendingUp} title="今日最重要 TOP 5" count={topFive.length} hint="依成交價值與成交率排序" />
         <div className="journey-list">
-          {topFive.map((journey, index) => <JourneyDecisionCard key={journey.id} journey={journey} rank={index + 1} onComplete={completeJourney} />)}
+          {topFive.map((journey, index) => (
+            <JourneyDecisionCard
+              key={journey.id}
+              journey={journey}
+              rank={index + 1}
+              menuOpen={menuJourneyId === journey.id}
+              onOpen={() => setEditingJourney(journey)}
+              onMenu={() => setMenuJourneyId(menuJourneyId === journey.id ? null : journey.id)}
+              onEdit={() => { setEditingJourney(journey); setMenuJourneyId(null); }}
+              onDelete={() => deleteJourney(journey.id)}
+              onCopy={() => copyJourney(journey.id)}
+              onHistory={() => { setHistoryJourney(journey); setMenuJourneyId(null); }}
+              onComplete={completeJourney}
+            />
+          ))}
         </div>
       </section>
 
       <section className="decision-section">
         <SectionTitle icon={AlertTriangle} title="高優先事件" count={highPriority.length} hint="收斡旋、見面談、交屋、簽約、等待回覆永遠優先" />
-        <CompactJourneyList items={highPriority} emptyText="目前沒有高優先事件" />
+        <CompactJourneyList items={highPriority} emptyText="目前沒有高優先事件" onOpen={setEditingJourney} />
       </section>
 
       <section className="decision-section">
         <SectionTitle icon={Clock3} title="等待中的案件" count={waiting.length} hint="等待屋主、買方、貸款、代書、租客" />
-        <CompactJourneyList items={waiting} emptyText="目前沒有等待中的案件" />
+        <CompactJourneyList items={waiting} emptyText="目前沒有等待中的案件" onOpen={setEditingJourney} />
       </section>
 
       <section className="decision-section">
         <SectionTitle icon={Check} title="今天完成" count={completed.length} hint="完成後從主要清單消失，只留紀錄" />
-        <CompactJourneyList items={completed.slice(0, 5)} emptyText="今天尚未完成任何 Journey" />
+        <CompactJourneyList items={completed.slice(0, 5)} emptyText="今天尚未完成任何 Journey" onOpen={setEditingJourney} />
       </section>
 
       <section className="decision-section inbox-summary">
@@ -155,6 +296,8 @@ export function CommandCenter() {
       </section>
 
       {showInbox && <InboxSheet onClose={() => setShowInbox(false)} onAccept={acceptDraft} />}
+      {editingJourney && <JourneyEditPage journey={editingJourney} onClose={() => setEditingJourney(null)} onSave={saveJourney} />}
+      {historyJourney && <HistoryPage journey={historyJourney} onClose={() => setHistoryJourney(null)} />}
     </main>
   );
 }
@@ -168,15 +311,47 @@ function SectionTitle({ icon: Icon, title, count, hint }: { icon: typeof Sparkle
   );
 }
 
-function JourneyDecisionCard({ journey, rank, onComplete }: { journey: JourneyCard; rank: number; onComplete: (id: string) => void }) {
+function JourneyDecisionCard({
+  journey,
+  rank,
+  menuOpen,
+  onOpen,
+  onMenu,
+  onEdit,
+  onDelete,
+  onCopy,
+  onHistory,
+  onComplete,
+}: {
+  journey: JourneyCard;
+  rank: number;
+  menuOpen: boolean;
+  onOpen: () => void;
+  onMenu: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onCopy: () => void;
+  onHistory: () => void;
+  onComplete: (id: string) => void;
+}) {
   return (
     <article className="journey-card">
+      <button className="journey-card-tap" onClick={onOpen} aria-label={`編輯 ${journey.person}`} />
       <div className="journey-rank">{rank}</div>
       <div className="journey-main">
         <div className="journey-topline">
           <strong>{journey.person}</strong>
           <span>{journey.estimatedDealValue}</span>
         </div>
+        <button className="journey-menu-button" onClick={onMenu} aria-label="Journey 功能選單"><MoreVertical /></button>
+        {menuOpen && (
+          <div className="journey-menu">
+            <button onClick={onEdit}><Pencil />編輯</button>
+            <button onClick={onDelete}><Trash2 />刪除</button>
+            <button onClick={onCopy}><Copy />複製</button>
+            <button onClick={onHistory}><History />歷程紀錄</button>
+          </div>
+        )}
         <dl>
           <div><dt>Journey</dt><dd>{journey.journey}｜{journey.stage}</dd></div>
           <div><dt>下一步</dt><dd>{journey.nextStep}</dd></div>
@@ -184,39 +359,185 @@ function JourneyDecisionCard({ journey, rank, onComplete }: { journey: JourneyCa
           <div><dt>風險</dt><dd>{journey.risk}</dd></div>
         </dl>
         <div className="journey-footer">
-          <span>成交價值分數 {journey.priorityScore}</span>
+          <span>成交率 {journey.priorityScore}%</span>
           {journey.eventKind && <em>{journey.eventKind}</em>}
-          {journey.status !== "done" && <button onClick={() => onComplete(journey.id)}><Check />完成</button>}
+          {journey.status !== "done" && <button onClick={(event) => { event.stopPropagation(); onComplete(journey.id); }}><Check />完成</button>}
         </div>
       </div>
     </article>
   );
 }
 
-function CompactJourneyList({ items, emptyText }: { items: JourneyCard[]; emptyText: string }) {
+function CompactJourneyList({ items, emptyText, onOpen }: { items: JourneyCard[]; emptyText: string; onOpen: (journey: JourneyCard) => void }) {
   if (!items.length) {
     return <div className="empty-state"><Check /><span>{emptyText}</span></div>;
   }
   return (
     <div className="compact-list">
       {items.map((item) => (
-        <article className="compact-card" key={item.id}>
+        <button className="compact-card" key={item.id} onClick={() => onOpen(item)}>
           <strong>{item.person}</strong>
           <span>{item.eventKind || item.waitingKind || item.stage}</span>
           <small>{item.nextStep}</small>
-        </article>
+        </button>
       ))}
     </div>
   );
 }
 
+function JourneyEditPage({ journey, onClose, onSave }: { journey: JourneyCard; onClose: () => void; onSave: (journey: JourneyCard) => void }) {
+  const [draft, setDraft] = useState<JourneyCard>(normalizeJourney(journey));
+  const [showAiUpdate, setShowAiUpdate] = useState(false);
+
+  function update<K extends keyof JourneyCard>(key: K, value: JourneyCard[K]) {
+    setDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  function applyAiDraft(aiDraft: AiJourneyDraft) {
+    setDraft((current) => ({
+      ...current,
+      person: aiDraft.person,
+      journey: aiDraft.journey,
+      stage: aiDraft.stage,
+      nextStep: aiDraft.nextAction,
+      priorityScore: aiDraft.priority,
+      estimatedDealValue: aiDraft.estimatedDealValue,
+      reason: aiDraft.reason,
+      risk: aiDraft.risk,
+      aiSuggestion: aiDraft.summary,
+      eventKind: aiDraft.eventKind || undefined,
+      waitingKind: aiDraft.waitingKind || undefined,
+    }));
+    setShowAiUpdate(false);
+  }
+
+  return (
+    <section className="fullscreen-editor">
+      <header className="editor-header">
+        <button className="icon-button" onClick={onClose} aria-label="取消"><X /></button>
+        <div>
+          <p>Edit Journey</p>
+          <h1>{draft.person || "新增 Journey"}</h1>
+        </div>
+        <button className="editor-save-mini" onClick={() => onSave(draft)}><Save />儲存</button>
+      </header>
+
+      <div className="editor-body">
+        <button className="ai-update-button" onClick={() => setShowAiUpdate(true)}><Sparkles />AI 更新 Journey</button>
+        <EditorInput label="客戶姓名" value={draft.person} onChange={(value) => update("person", value)} />
+        <label className="editor-field">
+          <span>Journey 類型</span>
+          <select value={draft.journey} onChange={(event) => update("journey", event.target.value as JourneyKind)}>
+            {journeyOptions.map((item) => <option key={item}>{item}</option>)}
+          </select>
+        </label>
+        <EditorInput label="目前階段" value={draft.stage} onChange={(value) => update("stage", value)} />
+        <EditorTextarea label="下一步" value={draft.nextStep} onChange={(value) => update("nextStep", value)} />
+        <EditorInput label="成交機率(%)" type="number" value={String(draft.priorityScore)} onChange={(value) => update("priorityScore", Math.max(1, Math.min(99, Number(value) || 1)))} />
+        <EditorInput label="成交價值" value={draft.estimatedDealValue} onChange={(value) => update("estimatedDealValue", value)} />
+        <EditorInput label="預計成交日期" type="date" value={draft.estimatedCloseDate || ""} onChange={(value) => update("estimatedCloseDate", value)} />
+        <EditorTextarea label="原因" value={draft.reason} onChange={(value) => update("reason", value)} />
+        <EditorTextarea label="風險" value={draft.risk} onChange={(value) => update("risk", value)} />
+        <EditorTextarea label="AI 建議" value={draft.aiSuggestion || ""} onChange={(value) => update("aiSuggestion", value)} />
+        <EditorTextarea label="備註" value={draft.notes || ""} onChange={(value) => update("notes", value)} />
+      </div>
+
+      <footer className="editor-actions">
+        <button onClick={() => onSave(draft)}><Save />儲存</button>
+        <button onClick={onClose}><X />取消</button>
+      </footer>
+
+      {showAiUpdate && <AiUpdateSheet journey={draft} onClose={() => setShowAiUpdate(false)} onApply={applyAiDraft} />}
+    </section>
+  );
+}
+
+function EditorInput({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
+  return (
+    <label className="editor-field">
+      <span>{label}</span>
+      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+    </label>
+  );
+}
+
+function EditorTextarea({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="editor-field">
+      <span>{label}</span>
+      <textarea value={value} onChange={(event) => onChange(event.target.value)} />
+    </label>
+  );
+}
+
+function HistoryPage({ journey, onClose }: { journey: JourneyCard; onClose: () => void }) {
+  return (
+    <section className="fullscreen-editor">
+      <header className="editor-header">
+        <button className="icon-button" onClick={onClose} aria-label="返回"><X /></button>
+        <div>
+          <p>歷程紀錄</p>
+          <h1>{journey.person}</h1>
+        </div>
+      </header>
+      <div className="editor-body">
+        {(journey.history || []).length === 0 ? (
+          <div className="empty-state"><History /><span>目前沒有修改紀錄</span></div>
+        ) : (
+          <div className="history-list">
+            {(journey.history || []).map((entry) => (
+              <article className="history-card" key={entry.id}>
+                <strong>{new Date(entry.changedAt).toLocaleString("zh-TW")}</strong>
+                <span>修改人：{entry.changedBy}</span>
+                <dl>
+                  <div><dt>修改前</dt><dd>{entry.before.person}｜{entry.before.stage}｜{entry.before.nextStep}</dd></div>
+                  <div><dt>修改後</dt><dd>{entry.after.person}｜{entry.after.stage}｜{entry.after.nextStep}</dd></div>
+                </dl>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function InboxSheet({ onClose, onAccept }: { onClose: () => void; onAccept: (draft: AiJourneyDraft, source: AiInboxItem["source"]) => void }) {
-  const [inputType, setInputType] = useState<"text" | "line" | "photo">("text");
-  const [text, setText] = useState("");
+  return <AiInputSheet title="新增 Journey" submitText="開始 AI 整理" onClose={onClose} onAccept={(draft) => onAccept(draft, "ChatGPT")} />;
+}
+
+function AiUpdateSheet({ journey, onClose, onApply }: { journey: JourneyCard; onClose: () => void; onApply: (draft: AiJourneyDraft) => void }) {
+  return (
+    <AiInputSheet
+      title="AI 更新 Journey"
+      submitText="AI 分析更新"
+      initialText={`目前 Journey：${journey.person}｜${journey.journey}｜${journey.stage}\n目前下一步：${journey.nextStep}\n目前成交率：${journey.priorityScore}%`}
+      onClose={onClose}
+      onAccept={onApply}
+    />
+  );
+}
+
+function AiInputSheet({
+  title,
+  submitText,
+  initialText = "",
+  onClose,
+  onAccept,
+}: {
+  title: string;
+  submitText: string;
+  initialText?: string;
+  onClose: () => void;
+  onAccept: (draft: AiJourneyDraft) => void;
+}) {
+  const [inputType, setInputType] = useState<InputType>("text");
+  const [text, setText] = useState(initialText);
   const [file, setFile] = useState<File | null>(null);
   const [draft, setDraft] = useState<AiJourneyDraft | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [listening, setListening] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -245,9 +566,27 @@ function InboxSheet({ onClose, onAccept }: { onClose: () => void; onAccept: (dra
     setDraft((current) => current ? { ...current, [key]: value } : current);
   }
 
-  function accept() {
-    if (!draft) return;
-    onAccept(draft, "ChatGPT");
+  function startVoiceInput() {
+    const speechWindow = window as SpeechWindow;
+    const SpeechRecognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setError("此瀏覽器暫不支援語音輸入，請先用鍵盤貼上內容。");
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = "zh-TW";
+    recognition.interimResults = false;
+    recognition.onstart = () => setListening(true);
+    recognition.onend = () => setListening(false);
+    recognition.onerror = () => {
+      setListening(false);
+      setError("語音輸入失敗，請再試一次。");
+    };
+    recognition.onresult = (event) => {
+      const spoken = Array.from(event.results).map((result) => result[0]?.transcript || "").join("");
+      setText((current) => `${current}${current ? "\n" : ""}${spoken}`);
+    };
+    recognition.start();
   }
 
   return (
@@ -255,7 +594,7 @@ function InboxSheet({ onClose, onAccept }: { onClose: () => void; onAccept: (dra
       <form className="bottom-sheet inbox-compose" onSubmit={submit}>
         <div className="sheet-handle" />
         <header>
-          <div><p>AI Inbox v2</p><h2>新增 Journey</h2></div>
+          <div><p>AI Inbox</p><h2>{title}</h2></div>
           <button type="button" className="icon-button" onClick={onClose}><X /></button>
         </header>
         {!draft ? (
@@ -267,9 +606,11 @@ function InboxSheet({ onClose, onAccept }: { onClose: () => void; onAccept: (dra
             </div>
 
             <label>
-              <span>文字內容</span>
+              <span>聊天內容 / 補充內容</span>
               <textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="貼上 LINE 對話、客戶需求、帶看心得，或補充照片內容..." />
             </label>
+
+            <button className="voice-button" type="button" onClick={startVoiceInput}><Mic />{listening ? "聆聽中..." : "語音輸入"}</button>
 
             {inputType !== "text" && (
               <label>
@@ -279,9 +620,9 @@ function InboxSheet({ onClose, onAccept }: { onClose: () => void; onAccept: (dra
             )}
 
             {error && <p className="form-error">{error}</p>}
-            <p>MG-AIOS 會呼叫 ChatGPT API，自動整理 Person、Journey、Stage、Priority、Next Action 與 Summary。</p>
+            <p>MG-AIOS 會呼叫 ChatGPT API，自動整理 Journey、下一步、成交率、原因、風險與今日優先順序。</p>
             <button className="sheet-submit" type="submit" disabled={loading || (!text.trim() && !file)}>
-              {loading ? "AI 整理中..." : "開始 AI 整理"}
+              {loading ? "AI 整理中..." : submitText}
             </button>
           </>
         ) : (
@@ -291,13 +632,13 @@ function InboxSheet({ onClose, onAccept }: { onClose: () => void; onAccept: (dra
               <strong>信心值 {draft.confidence}%</strong>
             </div>
             <label><span>Person</span><input value={draft.person} onChange={(event) => updateDraft("person", event.target.value)} /></label>
-            <label><span>Journey</span><select value={draft.journey} onChange={(event) => updateDraft("journey", event.target.value as AiJourneyDraft["journey"])}>{["屋主旅程", "案件旅程", "買方旅程", "出租旅程"].map((item) => <option key={item}>{item}</option>)}</select></label>
+            <label><span>Journey</span><select value={draft.journey} onChange={(event) => updateDraft("journey", event.target.value as AiJourneyDraft["journey"])}>{journeyOptions.map((item) => <option key={item}>{item}</option>)}</select></label>
             <label><span>Stage</span><input value={draft.stage} onChange={(event) => updateDraft("stage", event.target.value)} /></label>
-            <label><span>Priority</span><input type="number" min="1" max="99" value={draft.priority} onChange={(event) => updateDraft("priority", Number(event.target.value))} /></label>
+            <label><span>成交率</span><input type="number" min="1" max="99" value={draft.priority} onChange={(event) => updateDraft("priority", Number(event.target.value))} /></label>
             <label><span>Next Action</span><textarea value={draft.nextAction} onChange={(event) => updateDraft("nextAction", event.target.value)} /></label>
             <label><span>Summary</span><textarea value={draft.summary} onChange={(event) => updateDraft("summary", event.target.value)} /></label>
             <div className="preview-actions">
-              <button type="button" onClick={accept}>接受</button>
+              <button type="button" onClick={() => onAccept(draft)}>接受</button>
               <button type="button" onClick={() => setDraft(null)}>修改</button>
               <button type="button" onClick={onClose}>取消</button>
             </div>

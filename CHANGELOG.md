@@ -9,6 +9,13 @@ MG-AIOS 採用 Daily Build。
 
 ### 今天新增什麼
 
+- Journey 從展示卡片升級為可正式使用的 CRM。
+- 每張 Journey 支援查看、修改、刪除、複製與歷程紀錄。
+- Journey 卡片新增右上角「功能選單」：編輯、刪除、複製、歷程紀錄。
+- 點擊 Journey 卡片會進入手機優先的全螢幕編輯頁。
+- 編輯頁可修改客戶姓名、Journey 類型、目前階段、下一步、成交機率、成交價值、預計成交日期、原因、風險、AI 建議、備註。
+- 新增「AI 更新 Journey」，可貼聊天內容、LINE 截圖、照片或語音輸入，AI 分析後由使用者確認才寫入。
+- 新增 Journey 修改歷程，保留修改時間、修改人、修改前與修改後。
 - 新增 AI Inbox v2。
 - 首頁「新增」支援貼文字、上傳 LINE 截圖、上傳照片。
 - 新增 `/api/ai-inbox`，由 MG-AIOS 伺服器端呼叫 ChatGPT API。
@@ -26,6 +33,8 @@ MG-AIOS 採用 Daily Build。
 
 ### 今天改善什麼
 
+- Journey 修改後會立即更新 Dashboard 的 TOP5 排名、成交價值、成交率與下一步。
+- 編輯不使用桌面彈窗，改用 iPhone 友善的 Full Screen 編輯頁。
 - MG-AIOS 不再要求使用者先到 ChatGPT 整理摘要後再貼回系統。
 - AI 先整理，使用者只確認，不重複輸入 AI 已能辨識的資訊。
 - 若 `OPENAI_API_KEY` 尚未設定，會明確提示，不會建立錯誤 Journey。
