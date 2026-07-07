@@ -60,6 +60,10 @@ function dayDiff(dateText: string) {
   return Math.floor((today - target) / 86400000);
 }
 
+function daysUntil(dateText: string) {
+  return -dayDiff(dateText);
+}
+
 function loadStorage<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
@@ -344,7 +348,7 @@ function SellerModule({ sellers, onChange }: { sellers: Seller[]; onChange: (sel
   const [editing, setEditing] = useState<Seller | null>(null);
   const blank: Seller = { id: crypto.randomUUID(), name: "", listingStatus: "委售中", need: "", nextContactDate: todayValue(), note: "" };
   return <ModuleFrame title="屋主監控" caption="掌握委售狀態、屋主需求與下次聯絡。" onAdd={() => setEditing(blank)}>
-    {sellers.map((seller) => <article className="data-card" key={seller.id}><div><strong>{seller.name}</strong><span>{seller.listingStatus}｜{seller.need}</span><small>下次聯絡：{seller.nextContactDate}</small><em>{seller.nextContactDate <= todayValue() ? "AI提醒：今天應該聯絡" : "AI提醒：尚未到追蹤日"}</em></div><div className="card-actions"><button onClick={() => setEditing(seller)}><Pencil />編輯</button></div></article>)}
+    {sellers.map((seller) => <article className="data-card" key={seller.id}><div><strong>{seller.name}</strong><span>{seller.listingStatus}｜{seller.need}</span><small>下次聯絡：{seller.nextContactDate}</small><em>{seller.nextContactDate < todayValue() ? `AI提醒：已超過 ${dayDiff(seller.nextContactDate)} 天` : seller.nextContactDate === todayValue() ? "AI提醒：今天應該聯絡" : `AI提醒：${daysUntil(seller.nextContactDate)} 天後聯絡`}</em></div><div className="card-actions"><button onClick={() => setEditing(seller)}><Pencil />編輯</button></div></article>)}
     {editing && <SellerSheet seller={editing} onClose={() => setEditing(null)} onSave={(seller) => { onChange(sellers.some((item) => item.id === seller.id) ? sellers.map((item) => item.id === seller.id ? seller : item) : [seller, ...sellers]); setEditing(null); }} />}
   </ModuleFrame>;
 }
