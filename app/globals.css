@@ -244,6 +244,23 @@ button { cursor: pointer; }
 .editor-actions button { display: inline-flex; min-height: 56px; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--line); border-radius: 8px; background: #f7f9f7; color: var(--ink); font-size: 17px; font-weight: 900; }
 .editor-actions button:first-child { border-color: var(--brand); background: var(--brand); color: white; }
 .editor-actions svg { width: 20px; }
+.client-hero-card { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: white; }
+.client-hero-card h2 { margin: 0; font-size: 24px; line-height: 1.2; }
+.client-hero-card p { margin: 4px 0 0; color: var(--muted); font-weight: 900; }
+.client-hero-card a { display: inline-flex; width: fit-content; margin-top: 10px; color: var(--brand-strong); font-size: 18px; font-weight: 900; text-decoration: none; }
+.client-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.client-tags span { padding: 6px 9px; border-radius: 999px; background: var(--brand-soft); color: var(--brand-strong); font-size: 13px; font-weight: 900; }
+.crm-section { display: grid; gap: 10px; padding: 15px 0; border-top: 1px dashed #cdd8d0; }
+.crm-section h3 { margin: 0; font-size: 18px; }
+.client-metrics { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: white; }
+.metric-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 34px; }
+.metric-row span { color: var(--muted); font-weight: 900; }
+.metric-row strong { color: var(--brand-strong); font-size: 17px; }
+.journey-path { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: white; }
+.journey-path span { color: var(--muted); font-size: 14px; font-weight: 900; }
+.journey-path span.done, .journey-path span.current { color: var(--brand-strong); }
+.journey-path span.current { font-size: 15px; }
+.complete-action { min-height: 52px; border: 0; border-radius: 8px; background: var(--brand); color: white; font-size: 17px; font-weight: 900; }
 .history-list { display: grid; gap: 10px; }
 .history-card { display: grid; gap: 8px; padding: 13px; border: 1px solid var(--line); border-radius: 8px; background: white; }
 .history-card strong { font-size: 15px; }

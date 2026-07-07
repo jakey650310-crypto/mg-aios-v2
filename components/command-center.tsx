@@ -22,7 +22,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { seedInbox, seedJourneys } from "@/lib/seed";
 import type { AiInboxItem, AiJourneyDraft, JourneyCard, JourneyKind } from "@/lib/types";
 
@@ -85,6 +85,19 @@ function normalizeJourney(item: JourneyCard): JourneyCard {
     estimatedCloseDate: item.estimatedCloseDate || "",
     aiSuggestion: item.aiSuggestion || "",
     notes: item.notes || "",
+    phone: item.phone || "",
+    roleTag: item.roleTag || item.journey.replace("旅程", ""),
+    potentialTag: item.potentialTag || (item.priorityScore >= 80 ? "高潛力" : "持續追蹤"),
+    relationshipLevel: Number(item.relationshipLevel) || Math.max(1, Math.min(5, Math.round((Number(item.priorityScore) || 70) / 20))),
+    listingProbability: Number(item.listingProbability) || Math.max(1, Math.min(99, Number(item.priorityScore) || 70)),
+    referralProbability: Number(item.referralProbability) || 50,
+    dealValueLevel: item.dealValueLevel || "$$$",
+    aiNextSteps: item.aiNextSteps || `🟢 ${todayValue()}\n${item.nextStep}`,
+    latestFollowUp: item.latestFollowUp || item.notes || "尚未建立追蹤紀錄",
+    customerProfile: item.customerProfile || "工作\n家庭\n決策者\n個性\n興趣\nLINE\n生日\n孩子\n寵物\n車輛",
+    propertyInfo: item.propertyInfo || "社區\n樓層\n坪數\n車位\n屋齡\n交屋日\n購買價格\n貸款銀行",
+    lineRecords: item.lineRecords || "全部依日期排序\n可搜尋\nAI 自動摘要",
+    fileRecords: item.fileRecords || "契約\n名片\n照片\n格局圖\n逐字稿\n錄音",
     createdAt: item.createdAt || nowIso(),
     updatedAt: item.updatedAt || nowIso(),
     history: item.history || [],
@@ -423,8 +436,67 @@ function JourneyEditPage({ journey, onClose, onSave }: { journey: JourneyCard; o
       </header>
 
       <div className="editor-body">
+        <section className="client-hero-card">
+          <div>
+            <h2>👤 {draft.person}</h2>
+            <p>{draft.stage}</p>
+            {draft.phone && <a href={`tel:${draft.phone}`}>📞 {draft.phone}</a>}
+          </div>
+          <div className="client-tags">
+            <span>🏷️ {draft.roleTag}</span>
+            <span>🟢 {draft.status === "done" ? "已完成" : draft.stage}</span>
+            <span>🔥 {draft.potentialTag}</span>
+          </div>
+        </section>
+
+        <CrmSection title="📊 客戶儀表板">
+          <div className="client-metrics">
+            <Metric label="🤝 關係指數" value={"★".repeat(draft.relationshipLevel || 1)} />
+            <Metric label="🏡 委託機率" value={`${draft.listingProbability || draft.priorityScore}%`} />
+            <Metric label="🤝 轉介紹機率" value={`${draft.referralProbability || 50}%`} />
+            <Metric label="📈 成交價值" value={draft.dealValueLevel || draft.estimatedDealValue} />
+          </div>
+        </CrmSection>
+
+        <CrmSection title="🛣 客戶旅程">
+          <JourneyPath current={draft.stage} journey={draft.journey} />
+        </CrmSection>
+
+        <CrmSection title="📅 AI 下一步">
+          <EditorTextarea label="下一步計畫" value={draft.aiNextSteps || ""} onChange={(value) => update("aiNextSteps", value)} />
+          <button className="complete-action" onClick={() => update("status", "done")}>完成</button>
+        </CrmSection>
+
+        <CrmSection title="📝 最新追蹤">
+          <EditorTextarea label="最新追蹤" value={draft.latestFollowUp || ""} onChange={(value) => update("latestFollowUp", value)} />
+        </CrmSection>
+
+        <CrmSection title="🤖 AI 建議">
+          <EditorTextarea label="AI 建議" value={draft.aiSuggestion || ""} onChange={(value) => update("aiSuggestion", value)} />
+        </CrmSection>
+
         <button className="ai-update-button" onClick={() => setShowAiUpdate(true)}><Sparkles />AI 更新 Journey</button>
-        <EditorInput label="客戶姓名" value={draft.person} onChange={(value) => update("person", value)} />
+        <CrmSection title="👨‍👩‍👧 客戶資料">
+          <EditorTextarea label="客戶資料" value={draft.customerProfile || ""} onChange={(value) => update("customerProfile", value)} />
+        </CrmSection>
+
+        <CrmSection title="🏡 房屋資訊">
+          <EditorTextarea label="房屋資訊" value={draft.propertyInfo || ""} onChange={(value) => update("propertyInfo", value)} />
+        </CrmSection>
+
+        <CrmSection title="💬 LINE紀錄">
+          <EditorTextarea label="LINE紀錄" value={draft.lineRecords || ""} onChange={(value) => update("lineRecords", value)} />
+        </CrmSection>
+
+        <CrmSection title="📂 檔案">
+          <EditorTextarea label="檔案" value={draft.fileRecords || ""} onChange={(value) => update("fileRecords", value)} />
+        </CrmSection>
+
+        <CrmSection title="基本資料">
+          <EditorInput label="客戶姓名" value={draft.person} onChange={(value) => update("person", value)} />
+          <EditorInput label="電話" value={draft.phone || ""} onChange={(value) => update("phone", value)} />
+          <EditorInput label="標籤" value={draft.roleTag || ""} onChange={(value) => update("roleTag", value)} />
+          <EditorInput label="潛力標籤" value={draft.potentialTag || ""} onChange={(value) => update("potentialTag", value)} />
         <label className="editor-field">
           <span>Journey 類型</span>
           <select value={draft.journey} onChange={(event) => update("journey", event.target.value as JourneyKind)}>
@@ -434,12 +506,16 @@ function JourneyEditPage({ journey, onClose, onSave }: { journey: JourneyCard; o
         <EditorInput label="目前階段" value={draft.stage} onChange={(value) => update("stage", value)} />
         <EditorTextarea label="下一步" value={draft.nextStep} onChange={(value) => update("nextStep", value)} />
         <EditorInput label="成交機率(%)" type="number" value={String(draft.priorityScore)} onChange={(value) => update("priorityScore", Math.max(1, Math.min(99, Number(value) || 1)))} />
+          <EditorInput label="關係指數(1-5)" type="number" value={String(draft.relationshipLevel || 1)} onChange={(value) => update("relationshipLevel", Math.max(1, Math.min(5, Number(value) || 1)))} />
+          <EditorInput label="委託機率(%)" type="number" value={String(draft.listingProbability || draft.priorityScore)} onChange={(value) => update("listingProbability", Math.max(1, Math.min(99, Number(value) || 1)))} />
+          <EditorInput label="轉介紹機率(%)" type="number" value={String(draft.referralProbability || 50)} onChange={(value) => update("referralProbability", Math.max(1, Math.min(99, Number(value) || 1)))} />
         <EditorInput label="成交價值" value={draft.estimatedDealValue} onChange={(value) => update("estimatedDealValue", value)} />
+          <EditorInput label="成交價值等級" value={draft.dealValueLevel || ""} onChange={(value) => update("dealValueLevel", value)} />
         <EditorInput label="預計成交日期" type="date" value={draft.estimatedCloseDate || ""} onChange={(value) => update("estimatedCloseDate", value)} />
         <EditorTextarea label="原因" value={draft.reason} onChange={(value) => update("reason", value)} />
         <EditorTextarea label="風險" value={draft.risk} onChange={(value) => update("risk", value)} />
-        <EditorTextarea label="AI 建議" value={draft.aiSuggestion || ""} onChange={(value) => update("aiSuggestion", value)} />
         <EditorTextarea label="備註" value={draft.notes || ""} onChange={(value) => update("notes", value)} />
+        </CrmSection>
       </div>
 
       <footer className="editor-actions">
@@ -449,6 +525,40 @@ function JourneyEditPage({ journey, onClose, onSave }: { journey: JourneyCard; o
 
       {showAiUpdate && <AiUpdateSheet journey={draft} onClose={() => setShowAiUpdate(false)} onApply={applyAiDraft} />}
     </section>
+  );
+}
+
+function CrmSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="crm-section">
+      <h3>{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="metric-row">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function JourneyPath({ current, journey }: { current: string; journey: JourneyKind }) {
+  const baseSteps = journey === "屋主旅程"
+    ? ["建立關係", "開發中", "建立LINE", "持續聯絡", "委售機會", "專任委託", "成交", "售後關懷"]
+    : ["建立關係", "了解需求", "建立LINE", "持續聯絡", "看屋", "出價", "議價", "簽約", "交屋", "售後關懷"];
+  const currentIndex = Math.max(0, baseSteps.findIndex((step) => current.includes(step)));
+  return (
+    <div className="journey-path">
+      {baseSteps.map((step, index) => (
+        <span key={step} className={index < currentIndex ? "done" : index === currentIndex ? "current" : ""}>
+          {index < currentIndex ? "●" : index === currentIndex ? "●" : "○"} {step}
+        </span>
+      ))}
+    </div>
   );
 }
 
