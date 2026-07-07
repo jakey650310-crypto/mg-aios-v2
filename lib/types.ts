@@ -27,6 +27,21 @@ export interface AiInboxItem {
   synced: boolean;
 }
 
+export interface AiJourneyDraft {
+  person: string;
+  journey: JourneyKind;
+  stage: string;
+  priority: number;
+  nextAction: string;
+  summary: string;
+  reason: string;
+  risk: string;
+  estimatedDealValue: string;
+  eventKind: PriorityEventKind | "";
+  waitingKind: WaitingKind | "";
+  confidence: number;
+}
+
 export type ImpactLevel = "高" | "中" | "低";
 export type BacklogStatus = "待做" | "開發中" | "完成";
 

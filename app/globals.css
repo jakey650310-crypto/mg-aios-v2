@@ -200,6 +200,21 @@ button { cursor: pointer; }
 .bottom-sheet textarea { min-height: 170px; padding: 12px 13px; resize: vertical; line-height: 1.55; }
 .inbox-compose { display: grid; gap: 12px; }
 .inbox-compose p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.input-type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.input-type-grid button { display: grid; min-height: 78px; place-content: center; justify-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 8px; background: #f7f9f7; color: var(--muted); font-weight: 900; }
+.input-type-grid button.selected { border-color: #b9d4c1; background: var(--brand-soft); color: var(--brand-strong); }
+.input-type-grid svg { width: 22px; }
+.bottom-sheet input[type="file"] { width: 100%; min-height: 54px; padding: 13px; border: 1px solid #bcc8bf; border-radius: 7px; background: white; font-size: 15px; }
+.form-error { padding: 10px 12px; border-radius: 7px; background: #fff5f5; color: #b4232c !important; font-weight: 900; }
+.ai-preview { display: grid; gap: 12px; }
+.ai-preview-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 8px; background: var(--brand-soft); color: var(--brand-strong); }
+.ai-preview-head span, .ai-preview-head strong { font-size: 13px; }
+.ai-preview input, .ai-preview select, .ai-preview textarea { width: 100%; border: 1px solid #bcc8bf; border-radius: 7px; background: white; font-size: 16px; }
+.ai-preview input, .ai-preview select { min-height: 54px; padding: 0 13px; }
+.ai-preview textarea { min-height: 96px; padding: 12px 13px; line-height: 1.55; resize: vertical; }
+.preview-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.preview-actions button { min-height: 52px; border: 1px solid var(--line); border-radius: 8px; background: #f7f9f7; color: var(--ink); font-weight: 900; }
+.preview-actions button:first-child { border-color: var(--brand); background: var(--brand); color: white; }
 
 .backlog-shell { padding-bottom: 44px; }
 .backlog-hero { display: grid; gap: 8px; padding: 18px 0 14px; }

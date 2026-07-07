@@ -9,6 +9,11 @@ MG-AIOS 採用 Daily Build。
 
 ### 今天新增什麼
 
+- 新增 AI Inbox v2。
+- 首頁「新增」支援貼文字、上傳 LINE 截圖、上傳照片。
+- 新增 `/api/ai-inbox`，由 MG-AIOS 伺服器端呼叫 ChatGPT API。
+- AI 回傳 Journey 草稿 JSON：Person、Journey、Stage、Priority、Next Action、Summary。
+- 新增人工確認流程：接受、修改、取消。
 - 採用 Friction Driven Development（摩擦驅動開發）。
 - 新增 Product Backlog 頁面 `/backlog`。
 - Product Backlog 可記錄摩擦點、發現日期、影響成交程度、解決方案、狀態。
@@ -21,6 +26,9 @@ MG-AIOS 採用 Daily Build。
 
 ### 今天改善什麼
 
+- MG-AIOS 不再要求使用者先到 ChatGPT 整理摘要後再貼回系統。
+- AI 先整理，使用者只確認，不重複輸入 AI 已能辨識的資訊。
+- 若 `OPENAI_API_KEY` 尚未設定，會明確提示，不會建立錯誤 Journey。
 - 完成 MVP Freeze 收尾驗收，今天停止新增功能，目標改為「可以每天實際使用」。
 - 修正 ESLint 設定缺失，讓 Daily Build 收尾檢查可以正常執行。
 - 新功能不再以功能數量為優先，而是先確認是否能消除實際使用摩擦。
@@ -46,6 +54,8 @@ MG-AIOS 採用 Daily Build。
 
 ### 下一步做什麼
 
+- 設定正式環境 `OPENAI_API_KEY`，讓正式網址可以直接呼叫 ChatGPT API。
+- 用真實 LINE 截圖測試 AI Inbox v2 的辨識品質。
 - 每天實際使用後，先把卡住的地方記錄成 Improvement。
 - 優先消除 Product Backlog 中「高」影響摩擦。
 - 讓 AI Inbox 貼上 ChatGPT 摘要後，更精準建立或更新 Journey。

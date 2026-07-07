@@ -9,6 +9,7 @@ import {
   Inbox,
   LoaderCircle,
   MessageCircle,
+  Upload,
   Sparkles,
   TrendingUp,
   X,
@@ -16,7 +17,7 @@ import {
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { seedInbox, seedJourneys } from "@/lib/seed";
-import type { AiInboxItem, JourneyCard } from "@/lib/types";
+import type { AiInboxItem, AiJourneyDraft, JourneyCard } from "@/lib/types";
 
 const JOURNEYS_KEY = "mgAiosDealJourneys";
 const INBOX_KEY = "mgAiosDealInbox";
@@ -46,28 +47,20 @@ function sortByDealValue(items: JourneyCard[]) {
   });
 }
 
-function createJourneyFromSummary(summary: string): JourneyCard {
-  const person = summary.match(/([A-Za-z\u4e00-\u9fa5]{2,12})/)?.[1] || "新機會";
-  const probability = Number(summary.match(/(\d{2,3})\s*%/)?.[1] || 70);
-  const value = summary.match(/(\d{3,5})\s*萬/)?.[0] || "待確認成交價值";
-  const hasOwner = /屋主|委託|底價/.test(summary);
-  const hasLoan = /貸款|銀行/.test(summary);
-  const hasAppointment = /看屋|見面|拜訪/.test(summary);
-  const waitingKind = hasOwner ? "等待屋主" : hasLoan ? "等待貸款" : /回覆|等待/.test(summary) ? "等待買方" : undefined;
-
+function createJourneyFromDraft(draft: AiJourneyDraft): JourneyCard {
   return {
     id: crypto.randomUUID(),
-    person,
-    journey: hasOwner ? "屋主旅程" : "買方旅程",
-    stage: hasAppointment ? "見面談" : waitingKind ? waitingKind : "AI 摘要更新",
-    nextStep: summary.match(/下一步[:：]\s*([^。|\n]+)/)?.[1] || "依 AI 摘要安排下一步",
-    reason: `AI 摘要顯示此 Journey 有 ${probability}% 成交機會，值得今天優先推進。`,
-    risk: waitingKind ? "等待太久會讓成交進度卡住。" : "如果今天沒有行動，熱度可能下降。",
-    estimatedDealValue: value,
-    priorityScore: Math.min(99, probability + (hasAppointment ? 10 : 0) + (waitingKind ? 5 : 0)),
-    eventKind: hasAppointment ? "見面談" : waitingKind === "等待屋主" ? "屋主等待回覆" : waitingKind ? "買方等待回覆" : undefined,
-    waitingKind,
-    status: waitingKind ? "waiting" : "active",
+    person: draft.person,
+    journey: draft.journey,
+    stage: draft.stage,
+    nextStep: draft.nextAction,
+    reason: draft.reason,
+    risk: draft.risk,
+    estimatedDealValue: draft.estimatedDealValue,
+    priorityScore: draft.priority,
+    eventKind: draft.eventKind || undefined,
+    waitingKind: draft.waitingKind || undefined,
+    status: draft.waitingKind ? "waiting" : "active",
   };
 }
 
@@ -95,16 +88,16 @@ export function CommandCenter() {
     setJourneys((current) => current.map((item) => item.id === id ? { ...item, status: "done", completedAt: new Date().toISOString() } : item));
   }
 
-  function syncSummary(summary: string, source: AiInboxItem["source"]) {
+  function acceptDraft(draft: AiJourneyDraft, source: AiInboxItem["source"]) {
     const inboxItem: AiInboxItem = {
       id: crypto.randomUUID(),
       source,
-      summary,
+      summary: draft.summary,
       createdAt: new Date().toISOString(),
       synced: true,
     };
     setInbox((current) => [inboxItem, ...current]);
-    setJourneys((current) => [createJourneyFromSummary(summary), ...current]);
+    setJourneys((current) => [createJourneyFromDraft(draft), ...current]);
     setShowInbox(false);
   }
 
@@ -125,10 +118,10 @@ export function CommandCenter() {
       </header>
 
       <section className="decision-hero">
-        <p>房仲每天不是缺資料，而是缺注意力。</p>
+        <p>AI 先做，人確認。</p>
         <h1>今天要先做什麼？</h1>
         <span>依成交價值排序，先推進最接近成交的 Journey。</span>
-        <button className="primary-command" onClick={() => setShowInbox(true)}><CirclePlus />貼上 AI 摘要</button>
+        <button className="primary-command" onClick={() => setShowInbox(true)}><CirclePlus />新增</button>
       </section>
 
       <section className="decision-section">
@@ -157,11 +150,11 @@ export function CommandCenter() {
         <SectionTitle icon={Inbox} title="AI Inbox" count={inbox.filter((item) => item.synced).length} hint="ChatGPT 已完成的新分析" />
         <button className="inbox-entry" onClick={() => setShowInbox(true)}>
           <Inbox />
-          <span><strong>等待同步</strong><small>貼上 ChatGPT 摘要，MG-AIOS 自動產生 Journey。</small></span>
+          <span><strong>等待 AI 整理</strong><small>貼文字、LINE 截圖或照片，MG-AIOS 自動產生 Journey 草稿。</small></span>
         </button>
       </section>
 
-      {showInbox && <InboxSheet onClose={() => setShowInbox(false)} onSubmit={syncSummary} />}
+      {showInbox && <InboxSheet onClose={() => setShowInbox(false)} onAccept={acceptDraft} />}
     </main>
   );
 }
@@ -217,14 +210,44 @@ function CompactJourneyList({ items, emptyText }: { items: JourneyCard[]; emptyT
   );
 }
 
-function InboxSheet({ onClose, onSubmit }: { onClose: () => void; onSubmit: (summary: string, source: AiInboxItem["source"]) => void }) {
-  const [source, setSource] = useState<AiInboxItem["source"]>("ChatGPT");
-  const [summary, setSummary] = useState("");
+function InboxSheet({ onClose, onAccept }: { onClose: () => void; onAccept: (draft: AiJourneyDraft, source: AiInboxItem["source"]) => void }) {
+  const [inputType, setInputType] = useState<"text" | "line" | "photo">("text");
+  const [text, setText] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [draft, setDraft] = useState<AiJourneyDraft | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  function submit(event: FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!summary.trim()) return;
-    onSubmit(summary.trim(), source);
+    if (!text.trim() && !file) return;
+    setLoading(true);
+    setError("");
+
+    const payload = new FormData();
+    payload.set("inputType", inputType);
+    payload.set("text", text.trim());
+    if (file) payload.set("file", file);
+
+    try {
+      const response = await fetch("/api/ai-inbox", { method: "POST", body: payload });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "AI 整理失敗");
+      setDraft(data.draft as AiJourneyDraft);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "AI 整理失敗，請稍後再試。");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function updateDraft<K extends keyof AiJourneyDraft>(key: K, value: AiJourneyDraft[K]) {
+    setDraft((current) => current ? { ...current, [key]: value } : current);
+  }
+
+  function accept() {
+    if (!draft) return;
+    onAccept(draft, "ChatGPT");
   }
 
   return (
@@ -232,13 +255,54 @@ function InboxSheet({ onClose, onSubmit }: { onClose: () => void; onSubmit: (sum
       <form className="bottom-sheet inbox-compose" onSubmit={submit}>
         <div className="sheet-handle" />
         <header>
-          <div><p>AI Inbox</p><h2>同步 AI 摘要</h2></div>
+          <div><p>AI Inbox v2</p><h2>新增 Journey</h2></div>
           <button type="button" className="icon-button" onClick={onClose}><X /></button>
         </header>
-        <label><span>來源</span><select value={source} onChange={(event) => setSource(event.target.value as AiInboxItem["source"])}>{["ChatGPT", "Gemini", "Claude", "Codex", "其他"].map((item) => <option key={item}>{item}</option>)}</select></label>
-        <label><span>AI 摘要</span><textarea value={summary} onChange={(event) => setSummary(event.target.value)} placeholder="貼上 ChatGPT 已整理好的摘要，例如：Claire 成交率82%，下一步：確認7/14看屋，預估1500萬..." /></label>
-        <p>目前先用本機規則解析，不串 API。MG-AIOS 不要求重新填 CRM 欄位。</p>
-        <button className="sheet-submit" type="submit" disabled={!summary.trim()}>同步到首頁</button>
+        {!draft ? (
+          <>
+            <div className="input-type-grid">
+              <button type="button" className={inputType === "text" ? "selected" : ""} onClick={() => setInputType("text")}><MessageCircle />貼文字</button>
+              <button type="button" className={inputType === "line" ? "selected" : ""} onClick={() => setInputType("line")}><Upload />LINE 截圖</button>
+              <button type="button" className={inputType === "photo" ? "selected" : ""} onClick={() => setInputType("photo")}><Upload />上傳照片</button>
+            </div>
+
+            <label>
+              <span>文字內容</span>
+              <textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="貼上 LINE 對話、客戶需求、帶看心得，或補充照片內容..." />
+            </label>
+
+            {inputType !== "text" && (
+              <label>
+                <span>{inputType === "line" ? "LINE 截圖" : "照片"}</span>
+                <input type="file" accept="image/*" onChange={(event) => setFile(event.target.files?.[0] || null)} />
+              </label>
+            )}
+
+            {error && <p className="form-error">{error}</p>}
+            <p>MG-AIOS 會呼叫 ChatGPT API，自動整理 Person、Journey、Stage、Priority、Next Action 與 Summary。</p>
+            <button className="sheet-submit" type="submit" disabled={loading || (!text.trim() && !file)}>
+              {loading ? "AI 整理中..." : "開始 AI 整理"}
+            </button>
+          </>
+        ) : (
+          <div className="ai-preview">
+            <div className="ai-preview-head">
+              <span>AI 已整理，請確認</span>
+              <strong>信心值 {draft.confidence}%</strong>
+            </div>
+            <label><span>Person</span><input value={draft.person} onChange={(event) => updateDraft("person", event.target.value)} /></label>
+            <label><span>Journey</span><select value={draft.journey} onChange={(event) => updateDraft("journey", event.target.value as AiJourneyDraft["journey"])}>{["屋主旅程", "案件旅程", "買方旅程", "出租旅程"].map((item) => <option key={item}>{item}</option>)}</select></label>
+            <label><span>Stage</span><input value={draft.stage} onChange={(event) => updateDraft("stage", event.target.value)} /></label>
+            <label><span>Priority</span><input type="number" min="1" max="99" value={draft.priority} onChange={(event) => updateDraft("priority", Number(event.target.value))} /></label>
+            <label><span>Next Action</span><textarea value={draft.nextAction} onChange={(event) => updateDraft("nextAction", event.target.value)} /></label>
+            <label><span>Summary</span><textarea value={draft.summary} onChange={(event) => updateDraft("summary", event.target.value)} /></label>
+            <div className="preview-actions">
+              <button type="button" onClick={accept}>接受</button>
+              <button type="button" onClick={() => setDraft(null)}>修改</button>
+              <button type="button" onClick={onClose}>取消</button>
+            </div>
+          </div>
+        )}
       </form>
     </div>
   );
