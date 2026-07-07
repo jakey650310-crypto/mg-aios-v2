@@ -80,3 +80,135 @@ export interface ProductBacklogItem {
   solution: string;
   status: BacklogStatus;
 }
+
+export type PropertyStatus = "出售中" | "出租中" | "已成交" | "已出租" | "已結案";
+export type ContactRole = "Owner" | "Buyer" | "Tenant" | "Referrer";
+export type OperatingJourneyType = "Buyer" | "Owner" | "Tenant" | "Repair";
+export type OperatingJourneyStatus = "待處理" | "進行中" | "等待回覆" | "已完成";
+export type RepairStatus = "待處理" | "報價中" | "施工中" | "已完成" | "保固中";
+export type FileCategory = "契約" | "名片" | "照片" | "格局圖" | "逐字稿" | "錄音" | "其他";
+
+export interface ContactModel {
+  id: string;
+  name: string;
+  phone: string;
+  line: string;
+  email: string;
+  job: string;
+  birthday: string;
+  roles: ContactRole[];
+  tags: string[];
+  aiSummary: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PropertyModel {
+  id: string;
+  community: string;
+  address: string;
+  propertyType: string;
+  totalPrice: string;
+  area: string;
+  status: PropertyStatus;
+  ownerIds: string[];
+  buyerIds: string[];
+  tenantIds: string[];
+  journeyIds: string[];
+  repairIds: string[];
+  fileIds: string[];
+  financialIds: string[];
+  aiAnalysis: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OperatingJourneyModel {
+  id: string;
+  type: OperatingJourneyType;
+  propertyId: string;
+  contactIds: string[];
+  currentStage: string;
+  nextStep: string;
+  probability: number;
+  aiSuggestion: string;
+  reminderDate: string;
+  completedRecords: string[];
+  history: JourneyHistoryEntry[];
+  dealValue: number;
+  urgency: number;
+  overdueDays: number;
+  status: OperatingJourneyStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RepairModel {
+  id: string;
+  propertyId: string;
+  issue: string;
+  photoUrls: string[];
+  videoUrls: string[];
+  status: RepairStatus;
+  quote: string;
+  constructionDate: string;
+  completedDate: string;
+  warranty: string;
+  contractor: string;
+  cost: string;
+  aiReminder: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FileModel {
+  id: string;
+  propertyId: string;
+  contactId?: string;
+  category: FileCategory;
+  name: string;
+  url: string;
+  aiSummary: string;
+  createdAt: string;
+}
+
+export interface FinancialModel {
+  id: string;
+  propertyId: string;
+  title: string;
+  amount: number;
+  dueDate: string;
+  status: "待收" | "待付" | "已完成";
+  note: string;
+}
+
+export interface AiAssistantModel {
+  id: string;
+  title: string;
+  task: "整理摘要" | "排序TOP5" | "生成LINE訊息" | "生成追蹤建議" | "預測成交率" | "提醒風險";
+  input: string;
+  output: string;
+  confirmed: boolean;
+  createdAt: string;
+}
+
+export interface OperatingSystemState {
+  properties: PropertyModel[];
+  contacts: ContactModel[];
+  journeys: OperatingJourneyModel[];
+  repairs: RepairModel[];
+  files: FileModel[];
+  financials: FinancialModel[];
+  aiCenter: AiAssistantModel[];
+}
+
+export interface AiPriorityItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  nextStep: string;
+  score: number;
+  propertyId: string;
+  contactIds: string[];
+  type: "Journey" | "Repair" | "Financial" | "AI";
+}

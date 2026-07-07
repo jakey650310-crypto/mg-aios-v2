@@ -9,6 +9,15 @@ MG-AIOS 採用 Daily Build。
 
 ### 今天新增什麼
 
+- MG-AIOS v2 升級為 AI 房仲營運系統架構。
+- 新增 Property Model，所有資料以物件為核心關聯。
+- 新增 Contact Model，一位客戶可同時是 Owner、Buyer、Tenant、Referrer。
+- 新增 Operating Journey Model，支援 Buyer、Owner、Tenant、Repair 四種旅程。
+- 新增 Repair、Files、Financial、AI Center 資料模型。
+- 新增 Operating System State Management，六大模組共用同一份 localStorage 狀態。
+- 新增 AI Priority Score：成交價值 × 成交機率 × 時效性 × 逾期天數。
+- 首頁新增六大模組總覽：Dashboard、Property、Contact、Journey、Repair、AI Center。
+- 首頁新增 AI 今天最重要 TOP5 與今日營運摘要。
 - Journey 詳細頁升級為「客戶作戰頁」。
 - 新增客戶儀表板：關係指數、委託機率、轉介紹機率、成交價值。
 - 新增客戶旅程視覺化節點。
@@ -38,6 +47,8 @@ MG-AIOS 採用 Daily Build。
 
 ### 今天改善什麼
 
+- 資料不再只以 Journey 卡片為中心，改成 Property 關聯 Contact、Journey、Repair、Files、Financial、AI 分析。
+- 未來新增租賃管理、修繕管理、收租管理、591刊登、PDF售屋簡報、LINE整合、Google Calendar，不需要重寫核心資料層。
 - Journey 修改後會立即更新 Dashboard 的 TOP5 排名、成交價值、成交率與下一步。
 - 編輯不使用桌面彈窗，改用 iPhone 友善的 Full Screen 編輯頁。
 - MG-AIOS 不再要求使用者先到 ChatGPT 整理摘要後再貼回系統。

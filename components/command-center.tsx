@@ -14,6 +14,8 @@ import {
   Mic,
   MoreVertical,
   Pencil,
+  Home,
+  Wrench,
   Save,
   Trash2,
   Upload,
@@ -25,6 +27,7 @@ import Link from "next/link";
 import { FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { seedInbox, seedJourneys } from "@/lib/seed";
 import type { AiInboxItem, AiJourneyDraft, JourneyCard, JourneyKind } from "@/lib/types";
+import { useOperatingSystem } from "@/lib/use-operating-system";
 
 const JOURNEYS_KEY = "mgAiosDealJourneys";
 const INBOX_KEY = "mgAiosDealInbox";
@@ -170,6 +173,7 @@ function draftFromJourney(journey: JourneyCard): AiJourneyDraft {
 }
 
 export function CommandCenter() {
+  const operatingSystem = useOperatingSystem();
   const [ready, setReady] = useState(false);
   const [journeys, setJourneys] = useState<JourneyCard[]>(seedJourneys.map(normalizeJourney));
   const [inbox, setInbox] = useState<AiInboxItem[]>(seedInbox);
@@ -260,8 +264,48 @@ export function CommandCenter() {
       <section className="decision-hero">
         <p>AI 先做，人確認。</p>
         <h1>今天要先做什麼？</h1>
-        <span>每張 Journey 都可新增、查看、修改、刪除與追蹤歷程。</span>
+        <span>以物件為核心，整合客戶、Journey、修繕、文件、財務與 AI 分析。</span>
         <button className="primary-command" onClick={() => setShowInbox(true)}><CirclePlus />新增</button>
+      </section>
+
+      <section className="decision-section">
+        <SectionTitle icon={Sparkles} title="AI Operating System" count={6} hint="Property 為核心，六大模組已接上同一份資料層" />
+        <div className="module-overview-grid">
+          <ModuleOverviewCard icon={TrendingUp} title="Dashboard" value={`${operatingSystem.todayTopFive.length} 件`} caption="AI 今日最重要 TOP5" />
+          <ModuleOverviewCard icon={Home} title="Property" value={`${operatingSystem.state.properties.length} 間`} caption="物件中心與關聯資料" />
+          <ModuleOverviewCard icon={MessageCircle} title="Contact" value={`${operatingSystem.state.contacts.length} 位`} caption="一人多角色，不重複建檔" />
+          <ModuleOverviewCard icon={Clock3} title="Journey" value={`${operatingSystem.state.journeys.length} 條`} caption="買方、屋主、租客、修繕旅程" />
+          <ModuleOverviewCard icon={Wrench} title="Repair" value={`${operatingSystem.todayRepairs.length} 件`} caption="今日修繕事項" />
+          <ModuleOverviewCard icon={Inbox} title="AI Center" value={`${operatingSystem.state.aiCenter.length} 則`} caption="摘要、排序、提醒、風險" />
+        </div>
+      </section>
+
+      <section className="decision-section">
+        <SectionTitle icon={TrendingUp} title="AI 今天最重要 TOP5" count={operatingSystem.todayTopFive.length} hint="成交價值 × 成交機率 × 時效性 × 逾期天數" />
+        <div className="ai-priority-list">
+          {operatingSystem.todayTopFive.map((item, index) => (
+            <article className="ai-priority-card" key={item.id}>
+              <b>{index + 1}</b>
+              <div>
+                <strong>{item.title}</strong>
+                <span>{item.subtitle}</span>
+                <small>{item.nextStep}</small>
+              </div>
+              <em>{item.score}</em>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="decision-section">
+        <SectionTitle icon={AlertTriangle} title="今日營運摘要" count={operatingSystem.todayTasks.length + operatingSystem.todayRepairs.length} hint="提醒、成交機率、租賃、修繕集中看" />
+        <div className="today-summary-grid">
+          <Metric label="今日待辦" value={`${operatingSystem.todayTasks.length} 件`} />
+          <Metric label="今日提醒" value={`${operatingSystem.aiPriorityItems.length} 件`} />
+          <Metric label="今日成交機率" value={`${operatingSystem.todayProbability}%`} />
+          <Metric label="今日租賃事項" value={`${operatingSystem.todayRentals.length} 件`} />
+          <Metric label="今日修繕事項" value={`${operatingSystem.todayRepairs.length} 件`} />
+        </div>
       </section>
 
       <section className="decision-section">
@@ -321,6 +365,19 @@ function SectionTitle({ icon: Icon, title, count, hint }: { icon: typeof Sparkle
       <span className="decision-heading-icon"><Icon /></span>
       <div><p>{hint}</p><h2>{title}<b>{count}</b></h2></div>
     </div>
+  );
+}
+
+function ModuleOverviewCard({ icon: Icon, title, value, caption }: { icon: typeof Sparkles; title: string; value: string; caption: string }) {
+  return (
+    <article className="module-overview-card">
+      <span><Icon /></span>
+      <div>
+        <strong>{title}</strong>
+        <small>{caption}</small>
+      </div>
+      <b>{value}</b>
+    </article>
   );
 }
 
