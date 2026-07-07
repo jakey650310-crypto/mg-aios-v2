@@ -49,19 +49,58 @@ function getOutputText(response: unknown) {
   return "";
 }
 
-function normalizeDraft(draft: AiJourneyDraft): AiJourneyDraft {
+function normalizeDraft(draft: AiJourneyDraft, sourceText: string): AiJourneyDraft {
+  const combinedText = `${sourceText}\n${draft.summary}\n${draft.nextAction}\n${draft.stage}`;
+  const isSellerJourney = /屋主|委託|底價|賣|售屋|上架/.test(combinedText);
+  const isRentalJourney = /租客|房東|出租|收租|公證|點交|報修|續租|退租/.test(combinedText);
+  const isBuyerJourney = /買方|買屋|買房|預算|看屋|賞屋|出價|議價|貸款/.test(combinedText);
+  const hasOffer = /斡旋|出價/.test(combinedText);
+  const hasMeeting = /看屋|賞屋|見面|拜訪/.test(combinedText);
+  const hasSigning = /簽約/.test(combinedText);
+  const hasHandover = /交屋/.test(combinedText);
+  const hasWaiting = /等待|回覆/.test(combinedText);
+  const hasLoan = /貸款|銀行/.test(combinedText);
+  const journey = isSellerJourney
+    ? "屋主旅程"
+    : isRentalJourney && !isBuyerJourney
+      ? "出租旅程"
+      : isBuyerJourney
+        ? "買方旅程"
+        : draft.journey;
+  const eventKind = hasOffer
+    ? "收斡旋"
+    : hasSigning
+      ? "今天簽約"
+      : hasHandover
+        ? "今天交屋"
+        : hasMeeting
+          ? "見面談"
+          : hasWaiting && isSellerJourney
+            ? "屋主等待回覆"
+            : hasWaiting
+              ? "買方等待回覆"
+              : draft.eventKind || "";
+  const waitingKind = hasLoan
+    ? "等待貸款"
+    : hasWaiting && isSellerJourney
+      ? "等待屋主"
+      : hasWaiting
+        ? "等待買方"
+        : draft.waitingKind || "";
+
   return {
     ...draft,
     person: draft.person || "待確認",
-    stage: draft.stage || "AI 已整理",
+    journey,
+    stage: draft.stage || eventKind || waitingKind || "AI 已整理",
     priority: Math.max(1, Math.min(99, Number(draft.priority) || 70)),
     nextAction: draft.nextAction || "請確認下一步",
     summary: draft.summary || "AI 已整理，但摘要需要人工確認。",
     reason: draft.reason || "AI 判斷此項目值得進一步確認。",
     risk: draft.risk || "若未追蹤，可能錯過成交機會。",
     estimatedDealValue: draft.estimatedDealValue || "待確認成交價值",
-    eventKind: draft.eventKind || "",
-    waitingKind: draft.waitingKind || "",
+    eventKind,
+    waitingKind,
     confidence: Math.max(0, Math.min(100, Number(draft.confidence) || 0)),
   };
 }
@@ -87,6 +126,11 @@ export async function POST(request: Request) {
         "你是 MG-AIOS 的 AI 房仲作戰助理。",
         "請從使用者提供的文字、LINE 截圖或照片中，整理出今天可推進成交的 Journey。",
         "請不要建立 CRM 清單，只輸出一個最值得追蹤的 Journey。",
+        "買方看屋、賞屋、預算、出價、議價、貸款，請歸類為買方旅程。",
+        "屋主、委託、底價、售屋、上架，請歸類為屋主旅程。",
+        "租客、房東、出租、收租、公證、報修、續租、退租，才歸類為出租旅程。",
+        "看屋或賞屋不是交屋，eventKind 應為見面談。",
+        "只有明確提到交屋，eventKind 才能使用今天交屋。",
         "若資訊不足，仍輸出可確認草稿，並降低 confidence。",
         "priority 代表成交推進優先度，1 到 99，收斡旋、見面談、今天簽約、今天交屋、等待回覆要提高 priority。",
         `輸入類型：${inputType}`,
@@ -147,7 +191,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    return NextResponse.json({ draft: normalizeDraft(JSON.parse(outputText) as AiJourneyDraft) });
+    return NextResponse.json({ draft: normalizeDraft(JSON.parse(outputText) as AiJourneyDraft, text) });
   } catch {
     return NextResponse.json({ error: "AI 回傳格式無法解析，請重新送出。" }, { status: 502 });
   }
