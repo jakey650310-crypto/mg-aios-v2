@@ -26,7 +26,18 @@ import {
 import Link from "next/link";
 import { FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { seedInbox, seedJourneys } from "@/lib/seed";
-import type { AiInboxItem, AiJourneyDraft, JourneyCard, JourneyKind } from "@/lib/types";
+import type {
+  AiInboxItem,
+  AiJourneyDraft,
+  AiPriorityItem,
+  ContactModel,
+  JourneyCard,
+  JourneyKind,
+  OperatingJourneyModel,
+  OperatingSystemState,
+  PropertyModel,
+  RepairModel,
+} from "@/lib/types";
 import { useOperatingSystem } from "@/lib/use-operating-system";
 
 const JOURNEYS_KEY = "mgAiosDealJourneys";
@@ -35,6 +46,7 @@ const CEO_NAME = "蔡名廣";
 
 type JourneyPatch = Partial<JourneyCard>;
 type InputType = "text" | "line" | "photo";
+type OperatingModuleKey = "dashboard" | "property" | "contact" | "journey" | "repair" | "ai";
 type SpeechRecognitionResultLike = { transcript?: string };
 type SpeechRecognitionEventLike = { results: ArrayLike<ArrayLike<SpeechRecognitionResultLike>> };
 type SpeechRecognitionLike = {
@@ -181,6 +193,8 @@ export function CommandCenter() {
   const [editingJourney, setEditingJourney] = useState<JourneyCard | null>(null);
   const [historyJourney, setHistoryJourney] = useState<JourneyCard | null>(null);
   const [menuJourneyId, setMenuJourneyId] = useState<string | null>(null);
+  const [activeModule, setActiveModule] = useState<OperatingModuleKey | null>(null);
+  const [activeOperatingJourney, setActiveOperatingJourney] = useState<OperatingJourneyModel | null>(null);
 
   useEffect(() => {
     setJourneys(loadStorage(JOURNEYS_KEY, seedJourneys).map(normalizeJourney));
@@ -245,6 +259,17 @@ export function CommandCenter() {
     setShowInbox(false);
   }
 
+  function openPriorityItem(item: AiPriorityItem) {
+    if (item.type === "Journey") {
+      const journey = operatingSystem.state.journeys.find((entry) => entry.id === item.id);
+      if (journey) {
+        setActiveOperatingJourney(journey);
+        return;
+      }
+    }
+    setActiveModule(item.type === "Repair" ? "repair" : "dashboard");
+  }
+
   if (!ready) {
     return <div className="loading-screen"><LoaderCircle className="animate-spin" /><span>載入 AI Decision Dashboard</span></div>;
   }
@@ -271,12 +296,12 @@ export function CommandCenter() {
       <section className="decision-section">
         <SectionTitle icon={Sparkles} title="AI Operating System" count={6} hint="Property 為核心，六大模組已接上同一份資料層" />
         <div className="module-overview-grid">
-          <ModuleOverviewCard icon={TrendingUp} title="Dashboard" value={`${operatingSystem.todayTopFive.length} 件`} caption="AI 今日最重要 TOP5" />
-          <ModuleOverviewCard icon={Home} title="Property" value={`${operatingSystem.state.properties.length} 間`} caption="物件中心與關聯資料" />
-          <ModuleOverviewCard icon={MessageCircle} title="Contact" value={`${operatingSystem.state.contacts.length} 位`} caption="一人多角色，不重複建檔" />
-          <ModuleOverviewCard icon={Clock3} title="Journey" value={`${operatingSystem.state.journeys.length} 條`} caption="買方、屋主、租客、修繕旅程" />
-          <ModuleOverviewCard icon={Wrench} title="Repair" value={`${operatingSystem.todayRepairs.length} 件`} caption="今日修繕事項" />
-          <ModuleOverviewCard icon={Inbox} title="AI Center" value={`${operatingSystem.state.aiCenter.length} 則`} caption="摘要、排序、提醒、風險" />
+          <ModuleOverviewCard icon={TrendingUp} title="Dashboard" value={`${operatingSystem.todayTopFive.length} 件`} caption="AI 今日最重要 TOP5" onClick={() => setActiveModule("dashboard")} />
+          <ModuleOverviewCard icon={Home} title="Property" value={`${operatingSystem.state.properties.length} 間`} caption="物件中心與關聯資料" onClick={() => setActiveModule("property")} />
+          <ModuleOverviewCard icon={MessageCircle} title="Contact" value={`${operatingSystem.state.contacts.length} 位`} caption="一人多角色，不重複建檔" onClick={() => setActiveModule("contact")} />
+          <ModuleOverviewCard icon={Clock3} title="Journey" value={`${operatingSystem.state.journeys.length} 條`} caption="買方、屋主、租客、修繕旅程" onClick={() => setActiveModule("journey")} />
+          <ModuleOverviewCard icon={Wrench} title="Repair" value={`${operatingSystem.todayRepairs.length} 件`} caption="今日修繕事項" onClick={() => setActiveModule("repair")} />
+          <ModuleOverviewCard icon={Inbox} title="AI Center" value={`${operatingSystem.state.aiCenter.length} 則`} caption="摘要、排序、提醒、風險" onClick={() => setActiveModule("ai")} />
         </div>
       </section>
 
@@ -284,7 +309,7 @@ export function CommandCenter() {
         <SectionTitle icon={TrendingUp} title="AI 今天最重要 TOP5" count={operatingSystem.todayTopFive.length} hint="成交價值 × 成交機率 × 時效性 × 逾期天數" />
         <div className="ai-priority-list">
           {operatingSystem.todayTopFive.map((item, index) => (
-            <article className="ai-priority-card" key={item.id}>
+            <button className="ai-priority-card" key={`${item.type}-${item.id}`} onClick={() => openPriorityItem(item)}>
               <b>{index + 1}</b>
               <div>
                 <strong>{item.title}</strong>
@@ -292,7 +317,7 @@ export function CommandCenter() {
                 <small>{item.nextStep}</small>
               </div>
               <em>{item.score}</em>
-            </article>
+            </button>
           ))}
         </div>
       </section>
@@ -353,6 +378,23 @@ export function CommandCenter() {
       </section>
 
       {showInbox && <InboxSheet onClose={() => setShowInbox(false)} onAccept={acceptDraft} />}
+      {activeModule && (
+        <OperatingModulePage
+          moduleKey={activeModule}
+          state={operatingSystem.state}
+          priorityItems={operatingSystem.aiPriorityItems}
+          onClose={() => setActiveModule(null)}
+          onOpenJourney={setActiveOperatingJourney}
+          onOpenModule={setActiveModule}
+        />
+      )}
+      {activeOperatingJourney && (
+        <OperatingJourneyDetailPage
+          journey={activeOperatingJourney}
+          state={operatingSystem.state}
+          onClose={() => setActiveOperatingJourney(null)}
+        />
+      )}
       {editingJourney && <JourneyEditPage journey={editingJourney} onClose={() => setEditingJourney(null)} onSave={saveJourney} />}
       {historyJourney && <HistoryPage journey={historyJourney} onClose={() => setHistoryJourney(null)} />}
     </main>
@@ -368,16 +410,299 @@ function SectionTitle({ icon: Icon, title, count, hint }: { icon: typeof Sparkle
   );
 }
 
-function ModuleOverviewCard({ icon: Icon, title, value, caption }: { icon: typeof Sparkles; title: string; value: string; caption: string }) {
+function ModuleOverviewCard({
+  icon: Icon,
+  title,
+  value,
+  caption,
+  onClick,
+}: {
+  icon: typeof Sparkles;
+  title: string;
+  value: string;
+  caption: string;
+  onClick: () => void;
+}) {
   return (
-    <article className="module-overview-card">
+    <button className="module-overview-card" onClick={onClick}>
       <span><Icon /></span>
       <div>
         <strong>{title}</strong>
         <small>{caption}</small>
       </div>
       <b>{value}</b>
-    </article>
+    </button>
+  );
+}
+
+function OperatingModulePage({
+  moduleKey,
+  state,
+  priorityItems,
+  onClose,
+  onOpenJourney,
+  onOpenModule,
+}: {
+  moduleKey: OperatingModuleKey;
+  state: OperatingSystemState;
+  priorityItems: AiPriorityItem[];
+  onClose: () => void;
+  onOpenJourney: (journey: OperatingJourneyModel) => void;
+  onOpenModule: (moduleKey: OperatingModuleKey) => void;
+}) {
+  const titles: Record<OperatingModuleKey, { title: string; subtitle: string }> = {
+    dashboard: { title: "Dashboard", subtitle: "AI 今日最重要事項" },
+    property: { title: "Property List", subtitle: "物件中心" },
+    contact: { title: "Contact List", subtitle: "客戶中心" },
+    journey: { title: "Journey List", subtitle: "成交旅程" },
+    repair: { title: "Repair List", subtitle: "修繕管理" },
+    ai: { title: "AI Center Page", subtitle: "AI 助理中心" },
+  };
+
+  return (
+    <section className="fullscreen-editor module-list-page">
+      <header className="editor-header">
+        <button className="icon-button" onClick={onClose} aria-label="返回"><X /></button>
+        <div>
+          <p>{titles[moduleKey].subtitle}</p>
+          <h1>{titles[moduleKey].title}</h1>
+        </div>
+      </header>
+      <div className="editor-body">
+        {moduleKey === "dashboard" && (
+          <div className="data-list">
+            {priorityItems.map((item, index) => (
+              <button
+                className="data-card tappable-card"
+                key={`${item.type}-${item.id}`}
+                onClick={() => {
+                  if (item.type === "Journey") {
+                    const journey = state.journeys.find((entry) => entry.id === item.id);
+                    if (journey) onOpenJourney(journey);
+                  } else if (item.type === "Repair") {
+                    onOpenModule("repair");
+                  }
+                }}
+              >
+                <div>
+                  <strong>{index + 1}. {item.title}</strong>
+                  <span>{item.subtitle}</span>
+                  <small>{item.nextStep}</small>
+                </div>
+                <em>Score {item.score}</em>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {moduleKey === "property" && <PropertyList properties={state.properties} contacts={state.contacts} journeys={state.journeys} repairs={state.repairs} />}
+        {moduleKey === "contact" && <ContactList contacts={state.contacts} journeys={state.journeys} properties={state.properties} />}
+        {moduleKey === "journey" && <OperatingJourneyList journeys={state.journeys} state={state} onOpenJourney={onOpenJourney} />}
+        {moduleKey === "repair" && <RepairList repairs={state.repairs} properties={state.properties} />}
+        {moduleKey === "ai" && (
+          <div className="data-list">
+            {state.aiCenter.map((item) => (
+              <article className="data-card" key={item.id}>
+                <div>
+                  <strong>{item.title}</strong>
+                  <span>{item.output}</span>
+                  <small>{item.confirmed ? "已確認" : "等待確認"}</small>
+                </div>
+                <em>{item.task}</em>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function PropertyList({
+  properties,
+  contacts,
+  journeys,
+  repairs,
+}: {
+  properties: PropertyModel[];
+  contacts: ContactModel[];
+  journeys: OperatingJourneyModel[];
+  repairs: RepairModel[];
+}) {
+  return (
+    <div className="data-list">
+      {properties.map((property) => (
+        <article className="data-card" key={property.id}>
+          <div>
+            <strong>{property.community}</strong>
+            <span>{property.address}</span>
+            <small>{property.propertyType}｜{property.totalPrice}｜{property.area}</small>
+          </div>
+          <em>{property.status}</em>
+          <small>
+            關聯客戶 {contacts.filter((contact) => [...property.ownerIds, ...property.buyerIds, ...property.tenantIds].includes(contact.id)).length} 位｜
+            Journey {journeys.filter((journey) => journey.propertyId === property.id).length} 條｜
+            修繕 {repairs.filter((repair) => repair.propertyId === property.id).length} 件
+          </small>
+          <span>{property.aiAnalysis}</span>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function ContactList({
+  contacts,
+  journeys,
+  properties,
+}: {
+  contacts: ContactModel[];
+  journeys: OperatingJourneyModel[];
+  properties: PropertyModel[];
+}) {
+  return (
+    <div className="data-list">
+      {contacts.map((contact) => (
+        <article className="data-card" key={contact.id}>
+          <div>
+            <strong>{contact.name}</strong>
+            <span>{contact.roles.join(" / ")}</span>
+            <small>{contact.phone || contact.line || "尚未建立聯絡方式"}</small>
+          </div>
+          <em>{contact.tags.join("、") || "未標籤"}</em>
+          <small>
+            Journey {journeys.filter((journey) => journey.contactIds.includes(contact.id)).length} 條｜
+            關聯物件 {properties.filter((property) => [...property.ownerIds, ...property.buyerIds, ...property.tenantIds].includes(contact.id)).length} 間
+          </small>
+          <span>{contact.aiSummary}</span>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function OperatingJourneyList({
+  journeys,
+  state,
+  onOpenJourney,
+}: {
+  journeys: OperatingJourneyModel[];
+  state: OperatingSystemState;
+  onOpenJourney: (journey: OperatingJourneyModel) => void;
+}) {
+  return (
+    <div className="data-list">
+      {journeys.map((journey) => {
+        const property = state.properties.find((item) => item.id === journey.propertyId);
+        const contacts = state.contacts.filter((contact) => journey.contactIds.includes(contact.id));
+        return (
+          <button className="data-card tappable-card" key={journey.id} onClick={() => onOpenJourney(journey)}>
+            <div>
+              <strong>{contacts.map((contact) => contact.name).join("、") || "未指定客戶"}</strong>
+              <span>{journey.type}｜{journey.currentStage}</span>
+              <small>{property?.community || "未關聯物件"}</small>
+            </div>
+            <em>{journey.probability}%</em>
+            <span>{journey.nextStep}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function RepairList({ repairs, properties }: { repairs: RepairModel[]; properties: PropertyModel[] }) {
+  return (
+    <div className="data-list">
+      {repairs.map((repair) => {
+        const property = properties.find((item) => item.id === repair.propertyId);
+        return (
+          <article className="data-card" key={repair.id}>
+            <div>
+              <strong>{repair.issue}</strong>
+              <span>{property?.community || "未關聯物件"}</span>
+              <small>{repair.quote || "尚未報價"}｜{repair.contractor || "尚未指定師傅"}</small>
+            </div>
+            <em>{repair.status}</em>
+            <span>{repair.aiReminder}</span>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function OperatingJourneyDetailPage({
+  journey,
+  state,
+  onClose,
+}: {
+  journey: OperatingJourneyModel;
+  state: OperatingSystemState;
+  onClose: () => void;
+}) {
+  const property = state.properties.find((item) => item.id === journey.propertyId);
+  const contacts = state.contacts.filter((contact) => journey.contactIds.includes(contact.id));
+  const name = contacts.map((contact) => contact.name).join("、") || "未指定客戶";
+
+  return (
+    <section className="fullscreen-editor journey-detail-page">
+      <header className="editor-header">
+        <button className="icon-button" onClick={onClose} aria-label="返回"><X /></button>
+        <div>
+          <p>Journey Detail</p>
+          <h1>{name}</h1>
+        </div>
+      </header>
+      <div className="editor-body">
+        <section className="client-hero-card">
+          <div>
+            <h2>{name}</h2>
+            <p>{journey.type}｜{journey.currentStage}</p>
+          </div>
+          <div className="client-tags">
+            <span>成交機率 {journey.probability}%</span>
+            <span>成交價值 {journey.dealValue}</span>
+            <span>{journey.status}</span>
+          </div>
+        </section>
+
+        <DetailBlock title="下一步" value={journey.nextStep} />
+        <DetailBlock title="原因" value={journey.aiSuggestion || "尚未建立原因"} />
+        <DetailBlock title="風險" value={journey.overdueDays > 0 ? `已逾期 ${journey.overdueDays} 天，可能降低成交機會。` : "目前沒有逾期風險。"} />
+        <DetailBlock title="關聯物件" value={property ? `${property.community}｜${property.address}｜${property.totalPrice}` : "尚未關聯物件"} />
+        <DetailBlock title="關聯客戶" value={contacts.map((contact) => `${contact.name}（${contact.roles.join("/") || "未標籤"}）`).join("\n") || "尚未關聯客戶"} />
+
+        <section className="crm-section">
+          <h3>歷程紀錄</h3>
+          {journey.history.length ? (
+            <div className="history-list">
+              {journey.history.map((entry) => (
+                <article className="history-card" key={entry.id}>
+                  <strong>{new Date(entry.changedAt).toLocaleString("zh-TW")}</strong>
+                  <span>{entry.changedBy}</span>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state"><History /><span>尚無歷程紀錄</span></div>
+          )}
+        </section>
+      </div>
+      <footer className="editor-actions">
+        <button type="button"><Pencil />編輯</button>
+        <button type="button"><Trash2 />刪除</button>
+      </footer>
+    </section>
+  );
+}
+
+function DetailBlock({ title, value }: { title: string; value: string }) {
+  return (
+    <section className="crm-section">
+      <h3>{title}</h3>
+      <p className="detail-text">{value}</p>
+    </section>
   );
 }
 

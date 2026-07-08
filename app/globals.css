@@ -149,7 +149,9 @@ button { cursor: pointer; }
 .module-title button { padding: 0 12px; }
 .module-title svg, .card-actions svg { width: 17px; }
 .data-list { display: grid; gap: 10px; }
-.data-card { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: white; }
+.data-card { display: grid; gap: 12px; width: 100%; min-height: 86px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); text-align: left; }
+.tappable-card { cursor: pointer; }
+.tappable-card:active, .module-overview-card:active, .ai-priority-card:active { transform: translateY(1px); }
 .data-card > div:first-child { display: grid; gap: 5px; }
 .data-card strong { font-size: 17px; line-height: 1.35; }
 .data-card span { color: var(--ink); font-size: 14px; line-height: 1.45; }
@@ -175,7 +177,7 @@ button { cursor: pointer; }
 .decision-heading-icon { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 8px; background: var(--brand-soft); color: var(--brand); }
 .decision-heading-icon svg { width: 20px; }
 .module-overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.module-overview-card { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 8px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: white; }
+.module-overview-card { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 8px; align-items: center; width: 100%; min-height: 96px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); text-align: left; }
 .module-overview-card > span { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 8px; background: var(--brand-soft); color: var(--brand); }
 .module-overview-card svg { width: 18px; }
 .module-overview-card div { display: grid; min-width: 0; gap: 2px; }
@@ -183,7 +185,7 @@ button { cursor: pointer; }
 .module-overview-card small { color: var(--muted); font-size: 11px; line-height: 1.35; }
 .module-overview-card b { grid-column: 1 / -1; color: var(--brand-strong); font-size: 18px; }
 .ai-priority-list { display: grid; gap: 8px; }
-.ai-priority-card { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: white; }
+.ai-priority-card { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; min-height: 82px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); text-align: left; }
 .ai-priority-card > b { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 8px; background: var(--brand); color: white; }
 .ai-priority-card div { display: grid; min-width: 0; gap: 3px; }
 .ai-priority-card strong { font-size: 16px; }
@@ -284,6 +286,8 @@ button { cursor: pointer; }
 .history-card dl { display: grid; gap: 8px; margin: 0; }
 .history-card dt { color: var(--muted); font-size: 11px; font-weight: 900; }
 .history-card dd { margin: 0; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.module-list-page .editor-body, .journey-detail-page .editor-body { padding-bottom: 96px; }
+.detail-text { margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); line-height: 1.6; white-space: pre-line; }
 
 .backlog-shell { padding-bottom: 44px; }
 .backlog-hero { display: grid; gap: 8px; padding: 18px 0 14px; }
