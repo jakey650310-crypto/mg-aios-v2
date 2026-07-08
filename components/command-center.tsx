@@ -22,7 +22,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, type ReactNode, useMemo, useState } from "react";
+import { FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import type {
   AiJourneyDraft,
   AiPriorityItem,
@@ -648,9 +648,63 @@ function CalendarCenter({
   state: OperatingSystemState;
   onSetState: (updater: (current: OperatingSystemState) => OperatingSystemState) => void;
 }) {
+  const [calendarError, setCalendarError] = useState("");
+  const [calendarBusyId, setCalendarBusyId] = useState<string | null>(null);
   const today = new Date().toLocaleDateString("sv-SE");
   const tomorrow = new Date(Date.now() + 86400000).toLocaleDateString("sv-SE");
   const sortedEvents = [...state.calendarEvents].sort((a, b) => `${a.startDate} ${a.startTime}`.localeCompare(`${b.startDate} ${b.startTime}`));
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const googleStatus = params.get("googleCalendar");
+    if (googleStatus === "connected") {
+      const pendingEventId = window.localStorage.getItem("mgAiosPendingGoogleCalendarEventId");
+      if (pendingEventId) {
+        window.localStorage.removeItem("mgAiosPendingGoogleCalendarEventId");
+        void createGoogleEvent(pendingEventId);
+      }
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    if (googleStatus && googleStatus !== "connected") {
+      setCalendarError("Google 授權失敗，請重新按「加入 Google 行事曆」。");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  function buildCalendarPayload(event: CalendarEventModel) {
+    const property = findProperty(state, event.propertyId);
+    const caseItem = state.cases.find((item) => item.id === event.caseId);
+    const contacts = state.contacts.filter((contact) => event.contactIds.includes(contact.id));
+    return {
+      event,
+      property: property
+        ? {
+            community: property.community,
+            address: property.address,
+            totalPrice: property.totalPrice,
+          }
+        : undefined,
+      caseTitle: caseItem?.title || "",
+      contacts: contacts.map((contact) => ({
+        name: contact.name,
+        phone: contact.phone,
+        line: contact.line,
+        email: contact.email,
+      })),
+    };
+  }
+
+  async function requestCalendarApi(path: string, init: RequestInit) {
+    const response = await fetch(path, init);
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 401 && data.authUrl) {
+      return { needsAuth: true, authUrl: data.authUrl as string, error: data.error as string };
+    }
+    if (!response.ok) {
+      throw new Error(data.error || "Google Calendar API 發生錯誤。");
+    }
+    return data;
+  }
 
   function createEvent(property: PropertyModel) {
     const relatedCase = state.cases.find((item) => item.propertyId === property.id);
@@ -692,7 +746,7 @@ function CalendarCenter({
           ? {
               ...event,
               ...patch,
-              syncStatus: event.googleCalendarEventId ? "SyncFailed" : event.syncStatus,
+              syncStatus: patch.syncStatus || (event.googleCalendarEventId ? "SyncFailed" : event.syncStatus),
               updatedAt: nowIso(),
             }
           : event,
@@ -700,7 +754,22 @@ function CalendarCenter({
     }));
   }
 
-  function deleteEvent(id: string) {
+  async function deleteEvent(id: string) {
+    const target = state.calendarEvents.find((event) => event.id === id);
+    setCalendarError("");
+    if (target?.googleCalendarEventId) {
+      setCalendarBusyId(id);
+      try {
+        await requestCalendarApi(`/api/google-calendar/events?googleEventId=${encodeURIComponent(target.googleCalendarEventId)}`, {
+          method: "DELETE",
+        });
+      } catch (error) {
+        setCalendarError(error instanceof Error ? error.message : "刪除 Google 行事曆失敗。");
+        setCalendarBusyId(null);
+        return;
+      }
+      setCalendarBusyId(null);
+    }
     onSetState((current) => ({
       ...current,
       calendarEvents: current.calendarEvents.filter((event) => event.id !== id),
@@ -711,15 +780,68 @@ function CalendarCenter({
     }));
   }
 
-  function createGoogleEvent(id: string) {
-    updateEvent(id, {
-      googleCalendarEventId: `google-${id}`,
-      syncStatus: "Synced",
-    });
+  async function createGoogleEvent(id: string) {
+    const event = state.calendarEvents.find((item) => item.id === id);
+    if (!event) return;
+    setCalendarError("");
+    setCalendarBusyId(id);
+    try {
+      const data = await requestCalendarApi("/api/google-calendar/events", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(buildCalendarPayload(event)),
+      });
+      if (data.needsAuth) {
+        window.localStorage.setItem("mgAiosPendingGoogleCalendarEventId", id);
+        window.location.href = data.authUrl;
+        return;
+      }
+      updateEvent(id, {
+        ...data.event,
+        syncStatus: "Synced",
+      });
+    } catch (error) {
+      setCalendarError(error instanceof Error ? error.message : "建立 Google 行事曆失敗。");
+      updateEvent(id, { syncStatus: "SyncFailed" });
+    } finally {
+      setCalendarBusyId(null);
+    }
   }
 
-  function syncEvent(id: string) {
-    updateEvent(id, { syncStatus: "Synced" });
+  async function syncEvent(id: string) {
+    const event = state.calendarEvents.find((item) => item.id === id);
+    if (!event) return;
+    if (!event.googleCalendarEventId) {
+      await createGoogleEvent(id);
+      return;
+    }
+    setCalendarError("");
+    setCalendarBusyId(id);
+    try {
+      const updated = await requestCalendarApi("/api/google-calendar/events", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(buildCalendarPayload(event)),
+      });
+      if (updated.needsAuth) {
+        window.localStorage.setItem("mgAiosPendingGoogleCalendarEventId", id);
+        window.location.href = updated.authUrl;
+        return;
+      }
+
+      const latest = await requestCalendarApi(`/api/google-calendar/events?googleEventId=${encodeURIComponent(updated.event.googleCalendarEventId)}`, {
+        method: "GET",
+      });
+      updateEvent(id, {
+        ...latest.event,
+        syncStatus: "Synced",
+      });
+    } catch (error) {
+      setCalendarError(error instanceof Error ? error.message : "雙向同步失敗。");
+      updateEvent(id, { syncStatus: "SyncFailed" });
+    } finally {
+      setCalendarBusyId(null);
+    }
   }
 
   return (
@@ -729,6 +851,8 @@ function CalendarCenter({
         <Metric label="明天行程" value={`${state.calendarEvents.filter((event) => event.startDate === tomorrow).length} 件`} />
         <Metric label="全部行程" value={`${state.calendarEvents.length} 件`} />
       </section>
+
+      {calendarError && <p className="form-error">{calendarError}</p>}
 
       {state.properties.map((property) => (
         <button className="sheet-submit compact-submit" type="button" key={property.id} onClick={() => createEvent(property)}>
@@ -747,7 +871,7 @@ function CalendarCenter({
               <span>{event.startDate} {event.startTime} - {event.endTime}</span>
               <small>{property?.community || "未關聯物件"}｜{caseItem?.title || "未關聯案件"}｜{contacts.map((contact) => contact.name).join("、") || "未指定聯絡人"}</small>
             </div>
-            <em>{event.googleCalendarEventId ? "已加入 Google 行事曆" : "尚未同步"}</em>
+            <em>{event.syncStatus === "SyncFailed" ? "同步失敗" : event.googleCalendarEventId ? "已加入 Google 行事曆" : "尚未同步"}</em>
 
             <label className="editor-field">
               <span>標題</span>
@@ -769,9 +893,13 @@ function CalendarCenter({
             <EditorTextarea label="說明" value={event.description} onChange={(value) => updateEvent(event.id, { description: value })} />
 
             <div className="marketing-actions">
-              <button type="button" onClick={() => createGoogleEvent(event.id)}>加入 Google 行事曆</button>
-              <button type="button" onClick={() => syncEvent(event.id)}>{event.syncStatus === "Synced" ? "同步成功" : "雙向同步"}</button>
-              <button type="button" onClick={() => deleteEvent(event.id)}>刪除行程</button>
+              <button type="button" onClick={() => createGoogleEvent(event.id)} disabled={calendarBusyId === event.id}>
+                {calendarBusyId === event.id ? "同步中..." : "加入 Google 行事曆"}
+              </button>
+              <button type="button" onClick={() => syncEvent(event.id)} disabled={calendarBusyId === event.id}>
+                {event.syncStatus === "Synced" ? "同步成功" : "雙向同步"}
+              </button>
+              <button type="button" onClick={() => void deleteEvent(event.id)} disabled={calendarBusyId === event.id}>刪除行程</button>
             </div>
           </article>
         );
