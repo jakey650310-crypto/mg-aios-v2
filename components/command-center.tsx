@@ -393,6 +393,17 @@ export function CommandCenter() {
           journey={activeOperatingJourney}
           state={operatingSystem.state}
           onClose={() => setActiveOperatingJourney(null)}
+          onEdit={() => {
+            setActiveOperatingJourney(null);
+            setActiveModule("journey");
+          }}
+          onDelete={(id) => {
+            operatingSystem.setState((current) => ({
+              ...current,
+              journeys: current.journeys.filter((entry) => entry.id !== id),
+            }));
+            setActiveOperatingJourney(null);
+          }}
         />
       )}
       {editingJourney && <JourneyEditPage journey={editingJourney} onClose={() => setEditingJourney(null)} onSave={saveJourney} />}
@@ -636,10 +647,14 @@ function OperatingJourneyDetailPage({
   journey,
   state,
   onClose,
+  onEdit,
+  onDelete,
 }: {
   journey: OperatingJourneyModel;
   state: OperatingSystemState;
   onClose: () => void;
+  onEdit: () => void;
+  onDelete: (id: string) => void;
 }) {
   const property = state.properties.find((item) => item.id === journey.propertyId);
   const contacts = state.contacts.filter((contact) => journey.contactIds.includes(contact.id));
@@ -690,8 +705,8 @@ function OperatingJourneyDetailPage({
         </section>
       </div>
       <footer className="editor-actions">
-        <button type="button"><Pencil />編輯</button>
-        <button type="button"><Trash2 />刪除</button>
+        <button type="button" onClick={onEdit}><Pencil />編輯</button>
+        <button type="button" onClick={() => onDelete(journey.id)}><Trash2 />刪除</button>
       </footer>
     </section>
   );
