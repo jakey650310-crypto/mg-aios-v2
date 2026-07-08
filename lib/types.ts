@@ -84,6 +84,9 @@ export interface ProductBacklogItem {
 export type PropertyStatus = "出售中" | "出租中" | "已成交" | "已出租" | "已結案";
 export type ContactRole = "Owner" | "Buyer" | "Tenant" | "Referrer";
 export type OperatingJourneyType = "Buyer" | "Owner" | "Tenant" | "Repair";
+export type CaseType = "Sale" | "Rental" | "Repair" | "Warranty" | "Management";
+export type CaseStatus = "Active" | "Closing" | "Closed" | "Archived";
+export type ClosingTaskStatus = "Pending" | "Done";
 export type MarketingPlatform =
   | "591"
   | "Facebook"
@@ -128,6 +131,7 @@ export interface PropertyModel {
   repairIds: string[];
   fileIds: string[];
   financialIds: string[];
+  caseIds?: string[];
   aiAnalysis: string;
   createdAt: string;
   updatedAt: string;
@@ -204,6 +208,36 @@ export interface MarketingContentModel {
   updatedAt: string;
 }
 
+export interface CaseModel {
+  id: string;
+  propertyId: string;
+  type: CaseType;
+  title: string;
+  status: CaseStatus;
+  timeline: string[];
+  journeyIds: string[];
+  fileIds: string[];
+  financialIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClosingRecordModel {
+  id: string;
+  propertyId: string;
+  caseId: string;
+  title: string;
+  dealPrice: string;
+  commission: string;
+  tasks: Array<{
+    id: string;
+    title: string;
+    status: ClosingTaskStatus;
+  }>;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AiAssistantModel {
   id: string;
   title: string;
@@ -222,6 +256,8 @@ export interface OperatingSystemState {
   files: FileModel[];
   financials: FinancialModel[];
   marketingContents: MarketingContentModel[];
+  cases: CaseModel[];
+  closingRecords: ClosingRecordModel[];
   aiCenter: AiAssistantModel[];
 }
 

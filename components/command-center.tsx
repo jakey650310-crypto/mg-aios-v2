@@ -26,6 +26,7 @@ import type {
   AiJourneyDraft,
   AiPriorityItem,
   ContactModel,
+  CaseModel,
   MarketingContentModel,
   MarketingPlatform,
   OperatingJourneyModel,
@@ -36,7 +37,7 @@ import type {
 } from "@/lib/types";
 import { useOperatingSystem } from "@/lib/use-operating-system";
 
-type OperatingModuleKey = "dashboard" | "property" | "contact" | "journey" | "repair" | "marketing" | "ai";
+type OperatingModuleKey = "dashboard" | "property" | "contact" | "journey" | "repair" | "marketing" | "closing" | "documents" | "ai";
 type InputMode = "text" | "line" | "photo";
 
 const moduleLabels: Record<OperatingModuleKey, { title: string; subtitle: string }> = {
@@ -46,6 +47,8 @@ const moduleLabels: Record<OperatingModuleKey, { title: string; subtitle: string
   journey: { title: "案件旅程", subtitle: "下一步、原因、風險" },
   repair: { title: "修繕管理", subtitle: "報修、估價、施工、保固" },
   marketing: { title: "行銷中心", subtitle: "建立一次，到處發布" },
+  closing: { title: "成交中心", subtitle: "成交紀錄、公司請款、佣金" },
+  documents: { title: "文件中心", subtitle: "文件綁定物件與案件" },
   ai: { title: "AI 助理", subtitle: "整理、排序、提醒、產生內容" },
 };
 
@@ -200,20 +203,7 @@ export function CommandCenter() {
       </section>
 
       <section className="decision-section">
-        <SectionTitle icon={Sparkles} title="AI 房仲營運系統" count={7} hint="物件為核心，所有模組共用同一份資料" />
-        <div className="module-overview-grid">
-          <ModuleOverviewCard icon={TrendingUp} title="首頁" value={`${topFive.length} 件`} caption="AI 今日最重要 TOP5" onClick={() => setActiveModule("dashboard")} />
-          <ModuleOverviewCard icon={Home} title="物件中心" value={`${state.properties.length} 間`} caption="物件與關聯資料" onClick={() => setActiveModule("property")} />
-          <ModuleOverviewCard icon={MessageCircle} title="聯絡人" value={`${state.contacts.length} 位`} caption="一人多角色" onClick={() => setActiveModule("contact")} />
-          <ModuleOverviewCard icon={Clock3} title="案件旅程" value={`${state.journeys.length} 條`} caption="買方、屋主、租客、修繕" onClick={() => setActiveModule("journey")} />
-          <ModuleOverviewCard icon={Wrench} title="修繕管理" value={`${state.repairs.length} 件`} caption="報修到保固" onClick={() => setActiveModule("repair")} />
-          <ModuleOverviewCard icon={Megaphone} title="行銷中心" value={`${state.marketingContents.length} 則`} caption="建立一次，到處發布" onClick={() => setActiveModule("marketing")} />
-          <ModuleOverviewCard icon={Inbox} title="AI 助理" value={`${state.aiCenter.length} 則`} caption="摘要、排序、提醒、風險" onClick={() => setActiveModule("ai")} />
-        </div>
-      </section>
-
-      <section className="decision-section">
-        <SectionTitle icon={TrendingUp} title="今日 TOP5" count={topFive.length} hint="依成交價值、成交機率、時效性、逾期天數排序" />
+        <SectionTitle icon={TrendingUp} title="今天先做五件事" count={topFive.length} hint="依成交價值、成交機率、時效性、逾期天數排序" />
         <div className="ai-priority-list">
           {topFive.map((item, index) => (
             <button className="ai-priority-card" key={`${item.type}-${item.id}`} onClick={() => openPriorityItem(item)}>
@@ -226,6 +216,17 @@ export function CommandCenter() {
               <em>{item.score}</em>
             </button>
           ))}
+        </div>
+      </section>
+
+      <section className="decision-section">
+        <SectionTitle icon={Sparkles} title="流程導航" count={5} hint="物件 → 案件 → 行銷 → 成交 → 文件" />
+        <div className="workflow-nav">
+          <button onClick={() => setActiveModule("property")}><Home />物件</button>
+          <button onClick={() => setActiveModule("journey")}><Clock3 />案件</button>
+          <button onClick={() => setActiveModule("marketing")}><Megaphone />行銷</button>
+          <button onClick={() => setActiveModule("closing")}><Check />成交</button>
+          <button onClick={() => setActiveModule("documents")}><ClipboardList />文件</button>
         </div>
       </section>
 
@@ -385,11 +386,13 @@ function OperatingModulePage({
             ))}
           </div>
         )}
-        {moduleKey === "property" && <PropertyList properties={state.properties} contacts={state.contacts} journeys={state.journeys} repairs={state.repairs} />}
+        {moduleKey === "property" && <PropertyList state={state} onSetState={onSetState} onOpenModule={onOpenModule} />}
         {moduleKey === "contact" && <ContactList contacts={state.contacts} journeys={state.journeys} properties={state.properties} />}
         {moduleKey === "journey" && <JourneyList journeys={state.journeys} state={state} onOpenJourney={onOpenJourney} />}
         {moduleKey === "repair" && <RepairList repairs={state.repairs} properties={state.properties} />}
         {moduleKey === "marketing" && <MarketingCenter state={state} onSetState={onSetState} />}
+        {moduleKey === "closing" && <ClosingCenter state={state} onSetState={onSetState} onOpenModule={onOpenModule} />}
+        {moduleKey === "documents" && <DocumentsCenter state={state} onSetState={onSetState} />}
         {moduleKey === "ai" && <AiCenterList state={state} />}
       </div>
     </section>
@@ -397,19 +400,105 @@ function OperatingModulePage({
 }
 
 function PropertyList({
-  properties,
-  contacts,
-  journeys,
-  repairs,
+  state,
+  onSetState,
+  onOpenModule,
 }: {
-  properties: PropertyModel[];
-  contacts: ContactModel[];
-  journeys: OperatingJourneyModel[];
-  repairs: RepairModel[];
+  state: OperatingSystemState;
+  onSetState: (updater: (current: OperatingSystemState) => OperatingSystemState) => void;
+  onOpenModule: (moduleKey: OperatingModuleKey) => void;
 }) {
+  function createProperty() {
+    const id = crypto.randomUUID();
+    onSetState((current) => ({
+      ...current,
+      properties: [
+        {
+          id,
+          community: "新物件",
+          address: "請補地址",
+          propertyType: "住宅",
+          totalPrice: "待確認",
+          area: "待確認",
+          status: "出售中",
+          ownerIds: [],
+          buyerIds: [],
+          tenantIds: [],
+          journeyIds: [],
+          repairIds: [],
+          fileIds: [],
+          financialIds: [],
+          caseIds: [],
+          aiAnalysis: "新建立物件，下一步是建立案件。",
+          createdAt: nowIso(),
+          updatedAt: nowIso(),
+        },
+        ...current.properties,
+      ],
+    }));
+  }
+
+  function createCase(property: PropertyModel) {
+    const caseId = crypto.randomUUID();
+    const journeyId = crypto.randomUUID();
+    onSetState((current) => ({
+      ...current,
+      cases: [
+        {
+          id: caseId,
+          propertyId: property.id,
+          type: "Sale",
+          title: `${property.community}買賣案`,
+          status: "Active",
+          timeline: ["建立物件", "建立案件"],
+          journeyIds: [journeyId],
+          fileIds: [],
+          financialIds: [],
+          createdAt: nowIso(),
+          updatedAt: nowIso(),
+        },
+        ...current.cases,
+      ],
+      journeys: [
+        {
+          id: journeyId,
+          type: "Owner",
+          propertyId: property.id,
+          contactIds: property.ownerIds,
+          currentStage: "建立案件",
+          nextStep: "補齊物件資料並產生行銷素材",
+          probability: 60,
+          aiSuggestion: "先完成物件資料，再進入行銷中心一鍵生成素材。",
+          reminderDate: new Date().toLocaleDateString("sv-SE"),
+          completedRecords: [],
+          history: [],
+          dealValue: Number(property.totalPrice.replace(/\D/g, "")) || 100,
+          urgency: 4,
+          overdueDays: 0,
+          status: "待處理",
+          createdAt: nowIso(),
+          updatedAt: nowIso(),
+        },
+        ...current.journeys,
+      ],
+      properties: current.properties.map((item) =>
+        item.id === property.id
+          ? {
+              ...item,
+              journeyIds: [journeyId, ...item.journeyIds],
+              caseIds: [caseId, ...(item.caseIds || [])],
+              updatedAt: nowIso(),
+            }
+          : item,
+      ),
+    }));
+    onOpenModule("journey");
+  }
+
   return (
     <div className="data-list">
-      {properties.map((property) => (
+      <button className="sheet-submit compact-submit" type="button" onClick={createProperty}>建立物件</button>
+      {state.properties.map((property) => (
         <article className="data-card" key={property.id}>
           <div>
             <strong>{property.community}</strong>
@@ -418,11 +507,16 @@ function PropertyList({
           </div>
           <em>{property.status}</em>
           <small>
-            聯絡人 {contacts.filter((contact) => [...property.ownerIds, ...property.buyerIds, ...property.tenantIds].includes(contact.id)).length} 位｜
-            案件旅程 {journeys.filter((journey) => journey.propertyId === property.id).length} 條｜
-            修繕 {repairs.filter((repair) => repair.propertyId === property.id).length} 件
+            聯絡人 {state.contacts.filter((contact) => [...property.ownerIds, ...property.buyerIds, ...property.tenantIds].includes(contact.id)).length} 位｜
+            案件 {state.cases.filter((item) => item.propertyId === property.id).length} 件｜
+            旅程 {state.journeys.filter((journey) => journey.propertyId === property.id).length} 條｜
+            修繕 {state.repairs.filter((repair) => repair.propertyId === property.id).length} 件
           </small>
           <span>{property.aiAnalysis}</span>
+          <div className="marketing-actions">
+            <button type="button" onClick={() => createCase(property)}>建立案件</button>
+            <button type="button" onClick={() => onOpenModule("marketing")}>進入行銷</button>
+          </div>
         </article>
       ))}
     </div>
@@ -698,6 +792,203 @@ function MarketingCenter({
                 );
               })}
             </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function ClosingCenter({
+  state,
+  onSetState,
+  onOpenModule,
+}: {
+  state: OperatingSystemState;
+  onSetState: (updater: (current: OperatingSystemState) => OperatingSystemState) => void;
+  onOpenModule: (moduleKey: OperatingModuleKey) => void;
+}) {
+  function createClosing(property: PropertyModel, caseItem?: CaseModel) {
+    const caseId = caseItem?.id || crypto.randomUUID();
+    const closingId = crypto.randomUUID();
+    const commissionAmount = Math.round((Number(property.totalPrice.replace(/\D/g, "")) || 0) * 0.04);
+    onSetState((current) => {
+      const existingCase = current.cases.find((item) => item.id === caseId);
+      return {
+        ...current,
+        cases: existingCase
+          ? current.cases.map((item) =>
+              item.id === caseId
+                ? { ...item, status: "Closing", timeline: [...item.timeline, "成交", "公司請款"], updatedAt: nowIso() }
+                : item,
+            )
+          : [
+              {
+                id: caseId,
+                propertyId: property.id,
+                type: "Sale",
+                title: `${property.community}成交案`,
+                status: "Closing",
+                timeline: ["建立物件", "建立案件", "行銷", "成交", "公司請款"],
+                journeyIds: property.journeyIds,
+                fileIds: property.fileIds,
+                financialIds: property.financialIds,
+                createdAt: nowIso(),
+                updatedAt: nowIso(),
+              },
+              ...current.cases,
+            ],
+        closingRecords: [
+          {
+            id: closingId,
+            propertyId: property.id,
+            caseId,
+            title: `${property.community}成交紀錄單`,
+            dealPrice: property.totalPrice,
+            commission: commissionAmount ? `${commissionAmount}萬` : "待確認",
+            tasks: [
+              { id: crypto.randomUUID(), title: "成交紀錄單", status: "Pending" },
+              { id: crypto.randomUUID(), title: "公司請款", status: "Pending" },
+              { id: crypto.randomUUID(), title: "佣金", status: "Pending" },
+              { id: crypto.randomUUID(), title: "履保", status: "Pending" },
+              { id: crypto.randomUUID(), title: "過戶", status: "Pending" },
+              { id: crypto.randomUUID(), title: "點交", status: "Pending" },
+              { id: crypto.randomUUID(), title: "售後", status: "Pending" },
+            ],
+            createdAt: nowIso(),
+            updatedAt: nowIso(),
+          },
+          ...current.closingRecords,
+        ],
+        financials: [
+          {
+            id: crypto.randomUUID(),
+            propertyId: property.id,
+            title: `${property.community}公司請款`,
+            amount: commissionAmount,
+            dueDate: new Date().toLocaleDateString("sv-SE"),
+            status: "待收",
+            note: "成交中心自動建立",
+          },
+          ...current.financials,
+        ],
+        properties: current.properties.map((item) =>
+          item.id === property.id ? { ...item, status: "已成交", updatedAt: nowIso() } : item,
+        ),
+      };
+    });
+  }
+
+  function toggleTask(recordId: string, taskId: string) {
+    onSetState((current) => ({
+      ...current,
+      closingRecords: current.closingRecords.map((record) =>
+        record.id === recordId
+          ? {
+              ...record,
+              tasks: record.tasks.map((task) =>
+                task.id === taskId ? { ...task, status: task.status === "Done" ? "Pending" : "Done" } : task,
+              ),
+              updatedAt: nowIso(),
+            }
+          : record,
+      ),
+    }));
+  }
+
+  return (
+    <div className="data-list">
+      <div className="workflow-nav">
+        <button onClick={() => onOpenModule("property")}><Home />物件</button>
+        <button onClick={() => onOpenModule("journey")}><Clock3 />案件</button>
+        <button onClick={() => onOpenModule("marketing")}><Megaphone />行銷</button>
+        <button onClick={() => onOpenModule("documents")}><ClipboardList />文件</button>
+      </div>
+
+      {state.properties.map((property) => {
+        const propertyCases = state.cases.filter((item) => item.propertyId === property.id);
+        const records = state.closingRecords.filter((record) => record.propertyId === property.id);
+        return (
+          <article className="data-card" key={property.id}>
+            <div>
+              <strong>{property.community}</strong>
+              <span>{property.address}</span>
+              <small>{property.totalPrice}｜案件 {propertyCases.length} 件｜成交紀錄 {records.length} 筆</small>
+            </div>
+            <button className="sheet-submit compact-submit" type="button" onClick={() => createClosing(property, propertyCases[0])}>
+              成交並建立公司請款
+            </button>
+
+            {records.map((record) => (
+              <div className="closing-record" key={record.id}>
+                <strong>{record.title}</strong>
+                <span>成交價：{record.dealPrice}｜佣金：{record.commission}</span>
+                <div className="closing-task-grid">
+                  {record.tasks.map((task) => (
+                    <button className={task.status === "Done" ? "done" : ""} type="button" key={task.id} onClick={() => toggleTask(record.id, task.id)}>
+                      {task.status === "Done" ? "已完成" : "待處理"}｜{task.title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function DocumentsCenter({
+  state,
+  onSetState,
+}: {
+  state: OperatingSystemState;
+  onSetState: (updater: (current: OperatingSystemState) => OperatingSystemState) => void;
+}) {
+  function createClosingDocument(property: PropertyModel) {
+    const fileId = crypto.randomUUID();
+    onSetState((current) => ({
+      ...current,
+      files: [
+        {
+          id: fileId,
+          propertyId: property.id,
+          category: "其他",
+          name: `${property.community}成交文件包`,
+          url: "",
+          aiSummary: "包含成交紀錄單、公司請款、佣金、履保、過戶、點交、售後待辦。",
+          createdAt: nowIso(),
+        },
+        ...current.files,
+      ],
+      properties: current.properties.map((item) =>
+        item.id === property.id ? { ...item, fileIds: [fileId, ...item.fileIds], updatedAt: nowIso() } : item,
+      ),
+    }));
+  }
+
+  return (
+    <div className="data-list">
+      {state.properties.map((property) => {
+        const files = state.files.filter((file) => file.propertyId === property.id);
+        return (
+          <article className="data-card" key={property.id}>
+            <div>
+              <strong>{property.community}</strong>
+              <span>{property.address}</span>
+              <small>文件 {files.length} 份</small>
+            </div>
+            <button className="sheet-submit compact-submit" type="button" onClick={() => createClosingDocument(property)}>
+              建立成交文件包
+            </button>
+            {files.map((file) => (
+              <div className="closing-record" key={file.id}>
+                <strong>{file.name}</strong>
+                <span>{file.category}</span>
+                <small>{file.aiSummary}</small>
+              </div>
+            ))}
           </article>
         );
       })}

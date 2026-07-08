@@ -302,6 +302,15 @@ button { cursor: pointer; }
 .marketing-content-card p { margin: 0; color: var(--ink); line-height: 1.6; white-space: pre-line; }
 .marketing-actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
 .marketing-actions button { min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); font-weight: 900; }
+.workflow-nav { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; }
+.workflow-nav button { display: grid; min-height: 62px; place-content: center; justify-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); font-size: 12px; font-weight: 900; }
+.workflow-nav svg { width: 20px; height: 20px; color: var(--brand); }
+.closing-record { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: #f9fbf9; }
+.closing-record strong { font-size: 16px; }
+.closing-record span, .closing-record small { color: var(--muted); line-height: 1.45; }
+.closing-task-grid { display: grid; gap: 8px; }
+.closing-task-grid button { min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); font-weight: 900; text-align: left; padding: 0 10px; }
+.closing-task-grid button.done { border-color: #b9d4c1; background: var(--brand-soft); color: var(--brand-strong); }
 
 .backlog-shell { padding-bottom: 44px; }
 .backlog-hero { display: grid; gap: 8px; padding: 18px 0 14px; }
