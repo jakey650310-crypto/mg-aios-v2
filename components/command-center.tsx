@@ -9,6 +9,7 @@ import {
   Home,
   Inbox,
   LoaderCircle,
+  Megaphone,
   MessageCircle,
   Pencil,
   Save,
@@ -25,6 +26,8 @@ import type {
   AiJourneyDraft,
   AiPriorityItem,
   ContactModel,
+  MarketingContentModel,
+  MarketingPlatform,
   OperatingJourneyModel,
   OperatingJourneyType,
   OperatingSystemState,
@@ -33,7 +36,7 @@ import type {
 } from "@/lib/types";
 import { useOperatingSystem } from "@/lib/use-operating-system";
 
-type OperatingModuleKey = "dashboard" | "property" | "contact" | "journey" | "repair" | "ai";
+type OperatingModuleKey = "dashboard" | "property" | "contact" | "journey" | "repair" | "marketing" | "ai";
 type InputMode = "text" | "line" | "photo";
 
 const moduleLabels: Record<OperatingModuleKey, { title: string; subtitle: string }> = {
@@ -42,6 +45,7 @@ const moduleLabels: Record<OperatingModuleKey, { title: string; subtitle: string
   contact: { title: "聯絡人", subtitle: "一位人只有一份資料" },
   journey: { title: "案件旅程", subtitle: "下一步、原因、風險" },
   repair: { title: "修繕管理", subtitle: "報修、估價、施工、保固" },
+  marketing: { title: "行銷中心", subtitle: "建立一次，到處發布" },
   ai: { title: "AI 助理", subtitle: "整理、排序、提醒、產生內容" },
 };
 
@@ -196,13 +200,14 @@ export function CommandCenter() {
       </section>
 
       <section className="decision-section">
-        <SectionTitle icon={Sparkles} title="AI 房仲營運系統" count={6} hint="物件為核心，六大模組共用同一份資料" />
+        <SectionTitle icon={Sparkles} title="AI 房仲營運系統" count={7} hint="物件為核心，所有模組共用同一份資料" />
         <div className="module-overview-grid">
           <ModuleOverviewCard icon={TrendingUp} title="首頁" value={`${topFive.length} 件`} caption="AI 今日最重要 TOP5" onClick={() => setActiveModule("dashboard")} />
           <ModuleOverviewCard icon={Home} title="物件中心" value={`${state.properties.length} 間`} caption="物件與關聯資料" onClick={() => setActiveModule("property")} />
           <ModuleOverviewCard icon={MessageCircle} title="聯絡人" value={`${state.contacts.length} 位`} caption="一人多角色" onClick={() => setActiveModule("contact")} />
           <ModuleOverviewCard icon={Clock3} title="案件旅程" value={`${state.journeys.length} 條`} caption="買方、屋主、租客、修繕" onClick={() => setActiveModule("journey")} />
           <ModuleOverviewCard icon={Wrench} title="修繕管理" value={`${state.repairs.length} 件`} caption="報修到保固" onClick={() => setActiveModule("repair")} />
+          <ModuleOverviewCard icon={Megaphone} title="行銷中心" value={`${state.marketingContents.length} 則`} caption="建立一次，到處發布" onClick={() => setActiveModule("marketing")} />
           <ModuleOverviewCard icon={Inbox} title="AI 助理" value={`${state.aiCenter.length} 則`} caption="摘要、排序、提醒、風險" onClick={() => setActiveModule("ai")} />
         </div>
       </section>
@@ -251,6 +256,7 @@ export function CommandCenter() {
           moduleKey={activeModule}
           state={state}
           priorityItems={operatingSystem.aiPriorityItems}
+          onSetState={operatingSystem.setState}
           onClose={() => setActiveModule(null)}
           onOpenJourney={setActiveJourney}
           onOpenModule={setActiveModule}
@@ -327,6 +333,7 @@ function OperatingModulePage({
   moduleKey,
   state,
   priorityItems,
+  onSetState,
   onClose,
   onOpenJourney,
   onOpenModule,
@@ -334,6 +341,7 @@ function OperatingModulePage({
   moduleKey: OperatingModuleKey;
   state: OperatingSystemState;
   priorityItems: AiPriorityItem[];
+  onSetState: (updater: (current: OperatingSystemState) => OperatingSystemState) => void;
   onClose: () => void;
   onOpenJourney: (journey: OperatingJourneyModel) => void;
   onOpenModule: (moduleKey: OperatingModuleKey) => void;
@@ -381,6 +389,7 @@ function OperatingModulePage({
         {moduleKey === "contact" && <ContactList contacts={state.contacts} journeys={state.journeys} properties={state.properties} />}
         {moduleKey === "journey" && <JourneyList journeys={state.journeys} state={state} onOpenJourney={onOpenJourney} />}
         {moduleKey === "repair" && <RepairList repairs={state.repairs} properties={state.properties} />}
+        {moduleKey === "marketing" && <MarketingCenter state={state} onSetState={onSetState} />}
         {moduleKey === "ai" && <AiCenterList state={state} />}
       </div>
     </section>
@@ -493,6 +502,202 @@ function RepairList({ repairs, properties }: { repairs: RepairModel[]; propertie
             </div>
             <em>{repair.status}</em>
             <span>{repair.aiReminder}</span>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+const marketingPlatforms: Array<{ platform: MarketingPlatform; label: string }> = [
+  { platform: "591", label: "591 刊登文" },
+  { platform: "Facebook", label: "Facebook 貼文" },
+  { platform: "LINE", label: "LINE 訊息" },
+  { platform: "Instagram", label: "Instagram 文案" },
+  { platform: "Threads", label: "Threads 貼文" },
+  { platform: "YouTubeShorts", label: "YouTube Shorts 腳本" },
+  { platform: "TikTok", label: "TikTok 腳本" },
+  { platform: "SalesPresentation", label: "售屋簡報" },
+];
+
+const publishStatusLabels = {
+  Draft: "草稿",
+  Published: "已發布",
+  NeedUpdate: "需要更新",
+  Archived: "已封存",
+} satisfies Record<MarketingContentModel["publishStatus"], string>;
+
+function createMarketingContent(property: PropertyModel, platform: MarketingPlatform): MarketingContentModel {
+  const generatedAt = nowIso();
+  const label = marketingPlatforms.find((item) => item.platform === platform)?.label || platform;
+  return {
+    id: `${property.id}-${platform}`,
+    propertyId: property.id,
+    platform,
+    title: `${property.community}｜${label}`,
+    content: generateMarketingCopy(property, platform),
+    publishStatus: "Draft",
+    propertyPriceSnapshot: property.totalPrice,
+    generatedAt,
+    updatedAt: generatedAt,
+  };
+}
+
+function generateMarketingCopy(property: PropertyModel, platform: MarketingPlatform) {
+  const base = {
+    name: property.community || "精選物件",
+    address: property.address || "地址待確認",
+    type: property.propertyType || "住宅",
+    price: property.totalPrice || "價格待確認",
+    area: property.area || "坪數待確認",
+    analysis: property.aiAnalysis || "生活機能與物件條件待補充。",
+  };
+
+  switch (platform) {
+    case "591":
+      return `【${base.name}】${base.type}｜${base.price}\n\n地址：${base.address}\n坪數：${base.area}\n\n物件重點：\n${base.analysis}\n\n適合想要快速掌握區域、價格與生活機能的買方。照片只能看出部分感受，建議現場看採光、格局與生活動線。`;
+    case "Facebook":
+      return `━━━━━━━━━━\n🏡 ${base.name}\n✨ ${base.type}｜${base.price}\n━━━━━━━━━━\n\n📍 地址：${base.address}\n📐 坪數：${base.area}\n\n✨ 物件亮點\n${base.analysis}\n\n📲 想了解更多或安排看屋，歡迎直接私訊。`;
+    case "LINE":
+      return `${base.name}\n${base.type}｜${base.price}\n地址：${base.address}\n坪數：${base.area}\n\n這間我覺得可以安排看一下，重點是：${base.analysis}`;
+    case "Instagram":
+      return `${base.name}｜${base.price}\n\n${base.type}，${base.area}\n${base.address}\n\n${base.analysis}\n\n#桃園房仲 #南崁房仲 #買房 #看屋`;
+    case "Threads":
+      return `${base.name}，${base.price}。\n${base.type}、${base.area}，位置在 ${base.address}。\n\n重點：${base.analysis}\n\n這種物件適合想先看生活機能與實際居住感的人。`;
+    case "YouTubeShorts":
+      return `開場：今天帶你看 ${base.name}。\n\n重點一：${base.type}，開價 ${base.price}。\n重點二：坪數 ${base.area}，地址在 ${base.address}。\n重點三：${base.analysis}\n\n結尾：想看更多現場細節，可以留言或私訊預約看屋。`;
+    case "TikTok":
+      return `前三秒：${base.price} 可以看這間嗎？\n\n畫面一：社區外觀，字幕 ${base.name}\n畫面二：室內空間，字幕 ${base.type}｜${base.area}\n畫面三：生活機能，字幕 ${base.address}\n\n口播：${base.analysis}\n\n結尾：想看完整物件，私訊我。`;
+    case "SalesPresentation":
+      return `售屋簡報｜${base.name}\n\n一、物件基本資料\n地址：${base.address}\n類型：${base.type}\n總價：${base.price}\n坪數：${base.area}\n\n二、AI 重點分析\n${base.analysis}\n\n三、建議銷售角度\n以生活機能、總價帶與實際居住情境切入，讓買方快速理解為什麼值得現場看。`;
+  }
+}
+
+function MarketingCenter({
+  state,
+  onSetState,
+}: {
+  state: OperatingSystemState;
+  onSetState: (updater: (current: OperatingSystemState) => OperatingSystemState) => void;
+}) {
+  function generateAll(property: PropertyModel) {
+    onSetState((current) => {
+      const nextContents: MarketingContentModel[] = marketingPlatforms.map(({ platform }) => {
+        const existing = current.marketingContents.find((item) => item.propertyId === property.id && item.platform === platform);
+        const next = createMarketingContent(property, platform);
+        return existing
+          ? {
+              ...existing,
+              title: next.title,
+              content: next.content,
+              propertyPriceSnapshot: property.totalPrice,
+              publishStatus: existing.publishStatus === "Archived" ? "Archived" : "Draft",
+              updatedAt: nowIso(),
+            }
+          : next;
+      });
+
+      return {
+        ...current,
+        marketingContents: [
+          ...current.marketingContents.filter((item) => item.propertyId !== property.id),
+          ...nextContents,
+        ],
+      };
+    });
+  }
+
+  function updateAll(property: PropertyModel) {
+    onSetState((current) => ({
+      ...current,
+      marketingContents: current.marketingContents.map((item) =>
+        item.propertyId === property.id
+          ? {
+              ...item,
+              content: generateMarketingCopy(property, item.platform),
+              propertyPriceSnapshot: property.totalPrice,
+              publishStatus: item.publishStatus === "Published" ? "NeedUpdate" : item.publishStatus,
+              updatedAt: nowIso(),
+            }
+          : item,
+      ),
+    }));
+  }
+
+  function changeStatus(contentId: string, publishStatus: MarketingContentModel["publishStatus"]) {
+    onSetState((current) => ({
+      ...current,
+      marketingContents: current.marketingContents.map((item) =>
+        item.id === contentId ? { ...item, publishStatus, updatedAt: nowIso() } : item,
+      ),
+    }));
+  }
+
+  function updatePropertyPrice(propertyId: string, totalPrice: string) {
+    onSetState((current) => ({
+      ...current,
+      properties: current.properties.map((property) =>
+        property.id === propertyId ? { ...property, totalPrice, updatedAt: nowIso() } : property,
+      ),
+      marketingContents: current.marketingContents.map((item) =>
+        item.propertyId === propertyId && item.publishStatus === "Published"
+          ? { ...item, publishStatus: "NeedUpdate", updatedAt: nowIso() }
+          : item,
+      ),
+    }));
+  }
+
+  return (
+    <div className="data-list">
+      {state.properties.map((property) => {
+        const contents = state.marketingContents.filter((item) => item.propertyId === property.id);
+        const hasPriceChanged = contents.some((item) => item.propertyPriceSnapshot !== property.totalPrice);
+        return (
+          <article className="data-card marketing-property-card" key={property.id}>
+            <div>
+              <strong>{property.community}</strong>
+              <span>{property.address}</span>
+              <small>目前價格：{property.totalPrice}｜坪數：{property.area}</small>
+            </div>
+
+            <label className="editor-field">
+              <span>更新物件價格（寫回物件中心）</span>
+              <input value={property.totalPrice} onChange={(event) => updatePropertyPrice(property.id, event.target.value)} />
+            </label>
+
+            {hasPriceChanged && (
+              <div className="update-warning">
+                <AlertTriangle />
+                <span>價格已變更，要更新所有已發布內容嗎？</span>
+                <button type="button" onClick={() => updateAll(property)}>一鍵更新</button>
+              </div>
+            )}
+
+            <button className="sheet-submit compact-submit" type="button" onClick={() => generateAll(property)}>
+              一鍵生成全部素材
+            </button>
+
+            <div className="marketing-content-grid">
+              {marketingPlatforms.map(({ platform, label }) => {
+                const content = contents.find((item) => item.platform === platform);
+                return (
+                  <article className="marketing-content-card" key={platform}>
+                    <div>
+                      <strong>{label}</strong>
+                      <em>{content ? publishStatusLabels[content.publishStatus] : "尚未生成"}</em>
+                    </div>
+                    <p>{content?.content || "按「一鍵生成全部素材」後，系統會直接從物件資料產生內容。"}</p>
+                    {content && (
+                      <div className="marketing-actions">
+                        <button type="button" onClick={() => changeStatus(content.id, "Published")}>標記已發布</button>
+                        <button type="button" onClick={() => changeStatus(content.id, "NeedUpdate")}>需要更新</button>
+                        <button type="button" onClick={() => changeStatus(content.id, "Archived")}>封存</button>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
           </article>
         );
       })}

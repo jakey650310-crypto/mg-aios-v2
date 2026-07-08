@@ -84,6 +84,16 @@ export interface ProductBacklogItem {
 export type PropertyStatus = "出售中" | "出租中" | "已成交" | "已出租" | "已結案";
 export type ContactRole = "Owner" | "Buyer" | "Tenant" | "Referrer";
 export type OperatingJourneyType = "Buyer" | "Owner" | "Tenant" | "Repair";
+export type MarketingPlatform =
+  | "591"
+  | "Facebook"
+  | "LINE"
+  | "Instagram"
+  | "Threads"
+  | "YouTubeShorts"
+  | "TikTok"
+  | "SalesPresentation";
+export type PublishStatus = "Draft" | "Published" | "NeedUpdate" | "Archived";
 export type OperatingJourneyStatus = "待處理" | "進行中" | "等待回覆" | "已完成";
 export type RepairStatus = "待處理" | "報價中" | "施工中" | "已完成" | "保固中";
 export type FileCategory = "契約" | "名片" | "照片" | "格局圖" | "逐字稿" | "錄音" | "其他";
@@ -182,6 +192,18 @@ export interface FinancialModel {
   note: string;
 }
 
+export interface MarketingContentModel {
+  id: string;
+  propertyId: string;
+  platform: MarketingPlatform;
+  title: string;
+  content: string;
+  publishStatus: PublishStatus;
+  propertyPriceSnapshot: string;
+  generatedAt: string;
+  updatedAt: string;
+}
+
 export interface AiAssistantModel {
   id: string;
   title: string;
@@ -199,6 +221,7 @@ export interface OperatingSystemState {
   repairs: RepairModel[];
   files: FileModel[];
   financials: FinancialModel[];
+  marketingContents: MarketingContentModel[];
   aiCenter: AiAssistantModel[];
 }
 

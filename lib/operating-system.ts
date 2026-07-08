@@ -193,6 +193,7 @@ export const seedOperatingSystem: OperatingSystemState = {
   ],
   files: [],
   financials: [],
+  marketingContents: [],
   aiCenter: [
     {
       id: "ai-top5",
@@ -269,6 +270,7 @@ export function normalizeOperatingSystemState(state: Partial<OperatingSystemStat
     repairs: state.repairs || seedOperatingSystem.repairs,
     files: state.files || [],
     financials: state.financials || [],
+    marketingContents: state.marketingContents || [],
     aiCenter: state.aiCenter || seedOperatingSystem.aiCenter,
   };
 }

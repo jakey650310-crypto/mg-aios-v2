@@ -288,6 +288,20 @@ button { cursor: pointer; }
 .history-card dd { margin: 0; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
 .module-list-page .editor-body, .journey-detail-page .editor-body { padding-bottom: 96px; }
 .detail-text { margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); line-height: 1.6; white-space: pre-line; }
+.marketing-property-card { gap: 14px; }
+.compact-submit { margin-top: 0; }
+.update-warning { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px; align-items: center; padding: 12px; border: 1px solid #f2c36b; border-radius: 8px; background: #fff8e8; color: #7a4b00; }
+.update-warning svg { width: 22px; height: 22px; }
+.update-warning span { font-weight: 900; line-height: 1.45; }
+.update-warning button { grid-column: 1 / -1; min-height: 48px; border: 0; border-radius: 8px; background: #b87500; color: white; font-weight: 900; }
+.marketing-content-grid { display: grid; gap: 10px; }
+.marketing-content-card { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: #f9fbf9; }
+.marketing-content-card > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.marketing-content-card strong { font-size: 16px; }
+.marketing-content-card em { flex: 0 0 auto; padding: 4px 7px; border-radius: 5px; background: var(--brand-soft); color: var(--brand-strong); font-size: 12px; font-style: normal; font-weight: 900; }
+.marketing-content-card p { margin: 0; color: var(--ink); line-height: 1.6; white-space: pre-line; }
+.marketing-actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.marketing-actions button { min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); font-weight: 900; }
 
 .backlog-shell { padding-bottom: 44px; }
 .backlog-hero { display: grid; gap: 8px; padding: 18px 0 14px; }
