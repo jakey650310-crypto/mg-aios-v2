@@ -6,6 +6,7 @@ import {
   CirclePlus,
   ClipboardList,
   Clock3,
+  CalendarDays,
   Home,
   Inbox,
   LoaderCircle,
@@ -27,6 +28,8 @@ import type {
   AiPriorityItem,
   ContactModel,
   CaseModel,
+  CalendarEventModel,
+  CalendarEventType,
   MarketingContentModel,
   MarketingPlatform,
   OperatingJourneyModel,
@@ -37,7 +40,7 @@ import type {
 } from "@/lib/types";
 import { useOperatingSystem } from "@/lib/use-operating-system";
 
-type OperatingModuleKey = "dashboard" | "property" | "contact" | "journey" | "repair" | "marketing" | "closing" | "documents" | "ai";
+type OperatingModuleKey = "dashboard" | "property" | "contact" | "journey" | "repair" | "calendar" | "marketing" | "closing" | "documents" | "ai";
 type InputMode = "text" | "line" | "photo";
 
 const moduleLabels: Record<OperatingModuleKey, { title: string; subtitle: string }> = {
@@ -46,6 +49,7 @@ const moduleLabels: Record<OperatingModuleKey, { title: string; subtitle: string
   contact: { title: "聯絡人", subtitle: "一位人只有一份資料" },
   journey: { title: "案件旅程", subtitle: "下一步、原因、風險" },
   repair: { title: "修繕管理", subtitle: "報修、估價、施工、保固" },
+  calendar: { title: "日曆中心", subtitle: "所有時間都從這裡管理" },
   marketing: { title: "行銷中心", subtitle: "建立一次，到處發布" },
   closing: { title: "成交中心", subtitle: "成交紀錄、公司請款、佣金" },
   documents: { title: "文件中心", subtitle: "文件綁定物件與案件" },
@@ -100,6 +104,18 @@ export function CommandCenter() {
     }
     if (item.type === "Repair") {
       setActiveModule("repair");
+      return;
+    }
+    if (item.type === "Calendar") {
+      setActiveModule("calendar");
+      return;
+    }
+    if (item.type === "Closing") {
+      setActiveModule("closing");
+      return;
+    }
+    if (item.type === "Marketing") {
+      setActiveModule("marketing");
       return;
     }
     setActiveModule("dashboard");
@@ -220,10 +236,11 @@ export function CommandCenter() {
       </section>
 
       <section className="decision-section">
-        <SectionTitle icon={Sparkles} title="流程導航" count={5} hint="物件 → 案件 → 行銷 → 成交 → 文件" />
+        <SectionTitle icon={Sparkles} title="流程導航" count={6} hint="物件 → 案件 → 日曆 → 行銷 → 成交 → 文件" />
         <div className="workflow-nav">
           <button onClick={() => setActiveModule("property")}><Home />物件</button>
           <button onClick={() => setActiveModule("journey")}><Clock3 />案件</button>
+          <button onClick={() => setActiveModule("calendar")}><CalendarDays />日曆</button>
           <button onClick={() => setActiveModule("marketing")}><Megaphone />行銷</button>
           <button onClick={() => setActiveModule("closing")}><Check />成交</button>
           <button onClick={() => setActiveModule("documents")}><ClipboardList />文件</button>
@@ -390,6 +407,7 @@ function OperatingModulePage({
         {moduleKey === "contact" && <ContactList contacts={state.contacts} journeys={state.journeys} properties={state.properties} />}
         {moduleKey === "journey" && <JourneyList journeys={state.journeys} state={state} onOpenJourney={onOpenJourney} />}
         {moduleKey === "repair" && <RepairList repairs={state.repairs} properties={state.properties} />}
+        {moduleKey === "calendar" && <CalendarCenter state={state} onSetState={onSetState} />}
         {moduleKey === "marketing" && <MarketingCenter state={state} onSetState={onSetState} />}
         {moduleKey === "closing" && <ClosingCenter state={state} onSetState={onSetState} onOpenModule={onOpenModule} />}
         {moduleKey === "documents" && <DocumentsCenter state={state} onSetState={onSetState} />}
@@ -452,6 +470,7 @@ function PropertyList({
           status: "Active",
           timeline: ["建立物件", "建立案件"],
           journeyIds: [journeyId],
+          eventIds: [],
           fileIds: [],
           financialIds: [],
           createdAt: nowIso(),
@@ -596,6 +615,164 @@ function RepairList({ repairs, properties }: { repairs: RepairModel[]; propertie
             </div>
             <em>{repair.status}</em>
             <span>{repair.aiReminder}</span>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+const calendarEventTypes: CalendarEventType[] = [
+  "看屋",
+  "第二次看屋",
+  "屋主拜訪",
+  "簽委託",
+  "斡旋",
+  "簽約",
+  "成交",
+  "過戶",
+  "點交",
+  "交屋",
+  "公證",
+  "收租",
+  "修繕",
+  "驗屋",
+  "保固",
+  "自訂",
+];
+
+function CalendarCenter({
+  state,
+  onSetState,
+}: {
+  state: OperatingSystemState;
+  onSetState: (updater: (current: OperatingSystemState) => OperatingSystemState) => void;
+}) {
+  const today = new Date().toLocaleDateString("sv-SE");
+  const tomorrow = new Date(Date.now() + 86400000).toLocaleDateString("sv-SE");
+  const sortedEvents = [...state.calendarEvents].sort((a, b) => `${a.startDate} ${a.startTime}`.localeCompare(`${b.startDate} ${b.startTime}`));
+
+  function createEvent(property: PropertyModel) {
+    const relatedCase = state.cases.find((item) => item.propertyId === property.id);
+    const eventId = crypto.randomUUID();
+    const event: CalendarEventModel = {
+      id: eventId,
+      title: `${property.community}看屋`,
+      propertyId: property.id,
+      caseId: relatedCase?.id || "",
+      contactIds: [...property.ownerIds, ...property.buyerIds, ...property.tenantIds],
+      eventType: "看屋",
+      startDate: today,
+      endDate: today,
+      startTime: "10:00",
+      endTime: "11:00",
+      location: property.address,
+      description: "從日曆中心建立，請確認行程內容。",
+      status: "Scheduled",
+      googleCalendarEventId: "",
+      syncStatus: "NotSynced",
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+
+    onSetState((current) => ({
+      ...current,
+      calendarEvents: [event, ...current.calendarEvents],
+      cases: current.cases.map((item) =>
+        item.id === relatedCase?.id ? { ...item, eventIds: [eventId, ...item.eventIds], updatedAt: nowIso() } : item,
+      ),
+    }));
+  }
+
+  function updateEvent(id: string, patch: Partial<CalendarEventModel>) {
+    onSetState((current) => ({
+      ...current,
+      calendarEvents: current.calendarEvents.map((event) =>
+        event.id === id
+          ? {
+              ...event,
+              ...patch,
+              syncStatus: event.googleCalendarEventId ? "SyncFailed" : event.syncStatus,
+              updatedAt: nowIso(),
+            }
+          : event,
+      ),
+    }));
+  }
+
+  function deleteEvent(id: string) {
+    onSetState((current) => ({
+      ...current,
+      calendarEvents: current.calendarEvents.filter((event) => event.id !== id),
+      cases: current.cases.map((item) => ({
+        ...item,
+        eventIds: item.eventIds.filter((eventId) => eventId !== id),
+      })),
+    }));
+  }
+
+  function createGoogleEvent(id: string) {
+    updateEvent(id, {
+      googleCalendarEventId: `google-${id}`,
+      syncStatus: "Synced",
+    });
+  }
+
+  function syncEvent(id: string) {
+    updateEvent(id, { syncStatus: "Synced" });
+  }
+
+  return (
+    <div className="data-list">
+      <section className="today-summary-grid">
+        <Metric label="今天行程" value={`${state.calendarEvents.filter((event) => event.startDate === today).length} 件`} />
+        <Metric label="明天行程" value={`${state.calendarEvents.filter((event) => event.startDate === tomorrow).length} 件`} />
+        <Metric label="全部行程" value={`${state.calendarEvents.length} 件`} />
+      </section>
+
+      {state.properties.map((property) => (
+        <button className="sheet-submit compact-submit" type="button" key={property.id} onClick={() => createEvent(property)}>
+          新增行程｜{property.community}
+        </button>
+      ))}
+
+      {sortedEvents.map((event) => {
+        const property = findProperty(state, event.propertyId);
+        const caseItem = state.cases.find((item) => item.id === event.caseId);
+        const contacts = state.contacts.filter((contact) => event.contactIds.includes(contact.id));
+        return (
+          <article className="data-card calendar-event-card" key={event.id}>
+            <div>
+              <strong>{event.title}</strong>
+              <span>{event.startDate} {event.startTime} - {event.endTime}</span>
+              <small>{property?.community || "未關聯物件"}｜{caseItem?.title || "未關聯案件"}｜{contacts.map((contact) => contact.name).join("、") || "未指定聯絡人"}</small>
+            </div>
+            <em>{event.googleCalendarEventId ? "已加入 Google 行事曆" : "尚未同步"}</em>
+
+            <label className="editor-field">
+              <span>標題</span>
+              <input value={event.title} onChange={(input) => updateEvent(event.id, { title: input.target.value })} />
+            </label>
+            <label className="editor-field">
+              <span>行程類型</span>
+              <select value={event.eventType} onChange={(input) => updateEvent(event.id, { eventType: input.target.value as CalendarEventType })}>
+                {calendarEventTypes.map((type) => <option key={type}>{type}</option>)}
+              </select>
+            </label>
+            <div className="calendar-grid">
+              <EditorInput label="開始日期" type="date" value={event.startDate} onChange={(value) => updateEvent(event.id, { startDate: value })} />
+              <EditorInput label="結束日期" type="date" value={event.endDate} onChange={(value) => updateEvent(event.id, { endDate: value })} />
+              <EditorInput label="開始時間" type="time" value={event.startTime} onChange={(value) => updateEvent(event.id, { startTime: value })} />
+              <EditorInput label="結束時間" type="time" value={event.endTime} onChange={(value) => updateEvent(event.id, { endTime: value })} />
+            </div>
+            <EditorInput label="地點" value={event.location} onChange={(value) => updateEvent(event.id, { location: value })} />
+            <EditorTextarea label="說明" value={event.description} onChange={(value) => updateEvent(event.id, { description: value })} />
+
+            <div className="marketing-actions">
+              <button type="button" onClick={() => createGoogleEvent(event.id)}>加入 Google 行事曆</button>
+              <button type="button" onClick={() => syncEvent(event.id)}>{event.syncStatus === "Synced" ? "同步成功" : "雙向同步"}</button>
+              <button type="button" onClick={() => deleteEvent(event.id)}>刪除行程</button>
+            </div>
           </article>
         );
       })}
@@ -831,6 +1008,7 @@ function ClosingCenter({
                 status: "Closing",
                 timeline: ["建立物件", "建立案件", "行銷", "成交", "公司請款"],
                 journeyIds: property.journeyIds,
+                eventIds: [],
                 fileIds: property.fileIds,
                 financialIds: property.financialIds,
                 createdAt: nowIso(),

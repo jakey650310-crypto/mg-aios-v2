@@ -87,6 +87,25 @@ export type OperatingJourneyType = "Buyer" | "Owner" | "Tenant" | "Repair";
 export type CaseType = "Sale" | "Rental" | "Repair" | "Warranty" | "Management";
 export type CaseStatus = "Active" | "Closing" | "Closed" | "Archived";
 export type ClosingTaskStatus = "Pending" | "Done";
+export type CalendarEventType =
+  | "看屋"
+  | "第二次看屋"
+  | "屋主拜訪"
+  | "簽委託"
+  | "斡旋"
+  | "簽約"
+  | "成交"
+  | "過戶"
+  | "點交"
+  | "交屋"
+  | "公證"
+  | "收租"
+  | "修繕"
+  | "驗屋"
+  | "保固"
+  | "自訂";
+export type CalendarEventStatus = "Scheduled" | "Done" | "Cancelled";
+export type CalendarSyncStatus = "NotSynced" | "Synced" | "SyncFailed";
 export type MarketingPlatform =
   | "591"
   | "Facebook"
@@ -216,8 +235,29 @@ export interface CaseModel {
   status: CaseStatus;
   timeline: string[];
   journeyIds: string[];
+  eventIds: string[];
   fileIds: string[];
   financialIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CalendarEventModel {
+  id: string;
+  title: string;
+  propertyId: string;
+  caseId: string;
+  contactIds: string[];
+  eventType: CalendarEventType;
+  startDate: string;
+  endDate: string;
+  startTime: string;
+  endTime: string;
+  location: string;
+  description: string;
+  status: CalendarEventStatus;
+  googleCalendarEventId: string;
+  syncStatus: CalendarSyncStatus;
   createdAt: string;
   updatedAt: string;
 }
@@ -257,6 +297,7 @@ export interface OperatingSystemState {
   financials: FinancialModel[];
   marketingContents: MarketingContentModel[];
   cases: CaseModel[];
+  calendarEvents: CalendarEventModel[];
   closingRecords: ClosingRecordModel[];
   aiCenter: AiAssistantModel[];
 }
@@ -269,5 +310,5 @@ export interface AiPriorityItem {
   score: number;
   propertyId: string;
   contactIds: string[];
-  type: "Journey" | "Repair" | "Financial" | "AI";
+  type: "Journey" | "Repair" | "Financial" | "AI" | "Calendar" | "Closing" | "Marketing";
 }
