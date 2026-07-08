@@ -6,272 +6,166 @@ import {
   CirclePlus,
   ClipboardList,
   Clock3,
-  Copy,
-  History,
+  Home,
   Inbox,
   LoaderCircle,
   MessageCircle,
-  Mic,
-  MoreVertical,
   Pencil,
-  Home,
-  Wrench,
   Save,
-  Trash2,
-  Upload,
   Sparkles,
+  Trash2,
   TrendingUp,
+  Upload,
+  Wrench,
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
-import { seedInbox, seedJourneys } from "@/lib/seed";
+import { FormEvent, type ReactNode, useMemo, useState } from "react";
 import type {
-  AiInboxItem,
   AiJourneyDraft,
   AiPriorityItem,
   ContactModel,
-  JourneyCard,
-  JourneyKind,
   OperatingJourneyModel,
+  OperatingJourneyType,
   OperatingSystemState,
   PropertyModel,
   RepairModel,
 } from "@/lib/types";
 import { useOperatingSystem } from "@/lib/use-operating-system";
 
-const JOURNEYS_KEY = "mgAiosDealJourneys";
-const INBOX_KEY = "mgAiosDealInbox";
-const CEO_NAME = "蔡名廣";
-
-type JourneyPatch = Partial<JourneyCard>;
-type InputType = "text" | "line" | "photo";
 type OperatingModuleKey = "dashboard" | "property" | "contact" | "journey" | "repair" | "ai";
-type SpeechRecognitionResultLike = { transcript?: string };
-type SpeechRecognitionEventLike = { results: ArrayLike<ArrayLike<SpeechRecognitionResultLike>> };
-type SpeechRecognitionLike = {
-  lang: string;
-  interimResults: boolean;
-  onstart: (() => void) | null;
-  onend: (() => void) | null;
-  onerror: (() => void) | null;
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  start: () => void;
-};
-type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
-type SpeechWindow = Window & {
-  SpeechRecognition?: SpeechRecognitionCtor;
-  webkitSpeechRecognition?: SpeechRecognitionCtor;
-};
+type InputMode = "text" | "line" | "photo";
 
-const journeyOptions: JourneyKind[] = ["買方旅程", "屋主旅程", "出租旅程", "案件旅程"];
+const moduleLabels: Record<OperatingModuleKey, { title: string; subtitle: string }> = {
+  dashboard: { title: "首頁", subtitle: "AI 今日工作中心" },
+  property: { title: "物件中心", subtitle: "一間房子就是一個中心" },
+  contact: { title: "聯絡人", subtitle: "一位人只有一份資料" },
+  journey: { title: "案件旅程", subtitle: "下一步、原因、風險" },
+  repair: { title: "修繕管理", subtitle: "報修、估價、施工、保固" },
+  ai: { title: "AI 助理", subtitle: "整理、排序、提醒、產生內容" },
+};
 
 function nowIso() {
   return new Date().toISOString();
 }
 
-function todayValue() {
-  return new Date().toLocaleDateString("sv-SE");
+function formatDate(value: string) {
+  if (!value) return "未設定";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("zh-TW");
 }
 
-function loadStorage<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const saved = window.localStorage.getItem(key);
-    return saved ? JSON.parse(saved) as T : fallback;
-  } catch {
-    return fallback;
-  }
+function contactNames(state: OperatingSystemState, ids: string[]) {
+  const names = ids
+    .map((id) => state.contacts.find((contact) => contact.id === id)?.name)
+    .filter(Boolean);
+  return names.length ? names.join("、") : "未指定聯絡人";
 }
 
-function saveStorage<T>(key: string, value: T) {
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // Keep MG-AIOS usable even when localStorage is unavailable.
-  }
+function findProperty(state: OperatingSystemState, id: string) {
+  return state.properties.find((property) => property.id === id);
 }
 
-function normalizeJourney(item: JourneyCard): JourneyCard {
-  return {
-    ...item,
-    priorityScore: Number(item.priorityScore) || 70,
-    estimatedDealValue: item.estimatedDealValue || "待確認成交價值",
-    estimatedCloseDate: item.estimatedCloseDate || "",
-    aiSuggestion: item.aiSuggestion || "",
-    notes: item.notes || "",
-    phone: item.phone || "",
-    roleTag: item.roleTag || item.journey.replace("旅程", ""),
-    potentialTag: item.potentialTag || (item.priorityScore >= 80 ? "高潛力" : "持續追蹤"),
-    relationshipLevel: Number(item.relationshipLevel) || Math.max(1, Math.min(5, Math.round((Number(item.priorityScore) || 70) / 20))),
-    listingProbability: Number(item.listingProbability) || Math.max(1, Math.min(99, Number(item.priorityScore) || 70)),
-    referralProbability: Number(item.referralProbability) || 50,
-    dealValueLevel: item.dealValueLevel || "$$$",
-    aiNextSteps: item.aiNextSteps || `🟢 ${todayValue()}\n${item.nextStep}`,
-    latestFollowUp: item.latestFollowUp || item.notes || "尚未建立追蹤紀錄",
-    customerProfile: item.customerProfile || "工作\n家庭\n決策者\n個性\n興趣\nLINE\n生日\n孩子\n寵物\n車輛",
-    propertyInfo: item.propertyInfo || "社區\n樓層\n坪數\n車位\n屋齡\n交屋日\n購買價格\n貸款銀行",
-    lineRecords: item.lineRecords || "全部依日期排序\n可搜尋\nAI 自動摘要",
-    fileRecords: item.fileRecords || "契約\n名片\n照片\n格局圖\n逐字稿\n錄音",
-    createdAt: item.createdAt || nowIso(),
-    updatedAt: item.updatedAt || nowIso(),
-    history: item.history || [],
-  };
-}
-
-function sortByDealValue(items: JourneyCard[]) {
-  return [...items].sort((a, b) => {
-    const eventBoost = Number(Boolean(b.eventKind)) - Number(Boolean(a.eventKind));
-    return eventBoost || b.priorityScore - a.priorityScore;
-  });
-}
-
-function createJourneyFromDraft(draft: AiJourneyDraft): JourneyCard {
-  const createdAt = nowIso();
-  return {
-    id: crypto.randomUUID(),
-    person: draft.person,
-    journey: draft.journey,
-    stage: draft.stage,
-    nextStep: draft.nextAction,
-    reason: draft.reason,
-    risk: draft.risk,
-    estimatedDealValue: draft.estimatedDealValue,
-    priorityScore: draft.priority,
-    estimatedCloseDate: "",
-    aiSuggestion: draft.summary,
-    notes: "",
-    eventKind: draft.eventKind || undefined,
-    waitingKind: draft.waitingKind || undefined,
-    status: draft.waitingKind ? "waiting" : "active",
-    createdAt,
-    updatedAt: createdAt,
-    history: [],
-  };
-}
-
-function recordChange(before: JourneyCard, after: JourneyCard, changedBy = CEO_NAME) {
-  return {
-    ...after,
-    updatedAt: nowIso(),
-    history: [
-      {
-        id: crypto.randomUUID(),
-        changedAt: nowIso(),
-        changedBy,
-        before,
-        after,
-      },
-      ...(before.history || []),
-    ],
-  };
-}
-
-function draftFromJourney(journey: JourneyCard): AiJourneyDraft {
-  return {
-    person: journey.person,
-    journey: journey.journey,
-    stage: journey.stage,
-    priority: journey.priorityScore,
-    nextAction: journey.nextStep,
-    summary: journey.aiSuggestion || journey.notes || journey.reason,
-    reason: journey.reason,
-    risk: journey.risk,
-    estimatedDealValue: journey.estimatedDealValue,
-    eventKind: journey.eventKind || "",
-    waitingKind: journey.waitingKind || "",
-    confidence: journey.priorityScore,
-  };
+function mapDraftType(draft: AiJourneyDraft): OperatingJourneyType {
+  if (draft.journey.includes("屋主")) return "Owner";
+  if (draft.journey.includes("出租")) return "Tenant";
+  if (draft.journey.includes("案件")) return "Repair";
+  return "Buyer";
 }
 
 export function CommandCenter() {
   const operatingSystem = useOperatingSystem();
-  const [ready, setReady] = useState(false);
-  const [journeys, setJourneys] = useState<JourneyCard[]>(seedJourneys.map(normalizeJourney));
-  const [inbox, setInbox] = useState<AiInboxItem[]>(seedInbox);
-  const [showInbox, setShowInbox] = useState(false);
-  const [editingJourney, setEditingJourney] = useState<JourneyCard | null>(null);
-  const [historyJourney, setHistoryJourney] = useState<JourneyCard | null>(null);
-  const [menuJourneyId, setMenuJourneyId] = useState<string | null>(null);
   const [activeModule, setActiveModule] = useState<OperatingModuleKey | null>(null);
-  const [activeOperatingJourney, setActiveOperatingJourney] = useState<OperatingJourneyModel | null>(null);
+  const [activeJourney, setActiveJourney] = useState<OperatingJourneyModel | null>(null);
+  const [showInbox, setShowInbox] = useState(false);
 
-  useEffect(() => {
-    setJourneys(loadStorage(JOURNEYS_KEY, seedJourneys).map(normalizeJourney));
-    setInbox(loadStorage(INBOX_KEY, seedInbox));
-    setReady(true);
-  }, []);
-
-  useEffect(() => { if (ready) saveStorage(JOURNEYS_KEY, journeys); }, [journeys, ready]);
-  useEffect(() => { if (ready) saveStorage(INBOX_KEY, inbox); }, [inbox, ready]);
-
-  const activeJourneys = useMemo(() => journeys.filter((item) => item.status !== "done"), [journeys]);
-  const topFive = useMemo(() => sortByDealValue(activeJourneys).slice(0, 5), [activeJourneys]);
-  const highPriority = useMemo(() => sortByDealValue(activeJourneys.filter((item) => item.eventKind)), [activeJourneys]);
-  const waiting = useMemo(() => sortByDealValue(activeJourneys.filter((item) => item.waitingKind)), [activeJourneys]);
-  const completed = useMemo(() => journeys.filter((item) => item.status === "done").sort((a, b) => String(b.completedAt || "").localeCompare(String(a.completedAt || ""))), [journeys]);
-
-  function saveJourney(next: JourneyCard) {
-    setJourneys((current) => current.map((item) => item.id === next.id ? recordChange(item, next) : item));
-    setEditingJourney(null);
-  }
-
-  function deleteJourney(id: string) {
-    setJourneys((current) => current.filter((item) => item.id !== id));
-    setMenuJourneyId(null);
-  }
-
-  function copyJourney(id: string) {
-    const source = journeys.find((item) => item.id === id);
-    if (!source) return;
-    const copiedAt = nowIso();
-    const copyItem: JourneyCard = {
-      ...source,
-      id: crypto.randomUUID(),
-      person: `${source.person} 複製`,
-      status: "active",
-      completedAt: undefined,
-      createdAt: copiedAt,
-      updatedAt: copiedAt,
-      history: [],
-    };
-    setJourneys((current) => [copyItem, ...current]);
-    setMenuJourneyId(null);
-  }
-
-  function completeJourney(id: string) {
-    setJourneys((current) => current.map((item) => {
-      if (item.id !== id) return item;
-      return recordChange(item, { ...item, status: "done", completedAt: nowIso() });
-    }));
-  }
-
-  function acceptDraft(draft: AiJourneyDraft, source: AiInboxItem["source"]) {
-    const inboxItem: AiInboxItem = {
-      id: crypto.randomUUID(),
-      source,
-      summary: draft.summary,
-      createdAt: nowIso(),
-      synced: true,
-    };
-    setInbox((current) => [inboxItem, ...current]);
-    setJourneys((current) => [createJourneyFromDraft(draft), ...current]);
-    setShowInbox(false);
-  }
+  const topFive = operatingSystem.todayTopFive;
+  const state = operatingSystem.state;
 
   function openPriorityItem(item: AiPriorityItem) {
     if (item.type === "Journey") {
-      const journey = operatingSystem.state.journeys.find((entry) => entry.id === item.id);
+      const journey = state.journeys.find((entry) => entry.id === item.id);
       if (journey) {
-        setActiveOperatingJourney(journey);
+        setActiveJourney(journey);
         return;
       }
     }
-    setActiveModule(item.type === "Repair" ? "repair" : "dashboard");
+    if (item.type === "Repair") {
+      setActiveModule("repair");
+      return;
+    }
+    setActiveModule("dashboard");
   }
 
-  if (!ready) {
-    return <div className="loading-screen"><LoaderCircle className="animate-spin" /><span>載入 AI Decision Dashboard</span></div>;
+  function saveJourney(next: OperatingJourneyModel) {
+    operatingSystem.setState((current) => ({
+      ...current,
+      journeys: current.journeys.map((journey) =>
+        journey.id === next.id
+          ? {
+              ...next,
+              updatedAt: nowIso(),
+            }
+          : journey,
+      ),
+    }));
+    setActiveJourney(null);
+  }
+
+  function deleteJourney(id: string) {
+    operatingSystem.setState((current) => ({
+      ...current,
+      journeys: current.journeys.filter((journey) => journey.id !== id),
+      properties: current.properties.map((property) => ({
+        ...property,
+        journeyIds: property.journeyIds.filter((journeyId) => journeyId !== id),
+      })),
+    }));
+    setActiveJourney(null);
+  }
+
+  function acceptDraft(draft: AiJourneyDraft) {
+    const id = crypto.randomUUID();
+    const firstProperty = state.properties[0];
+    const firstContact = state.contacts.find((contact) => contact.name === draft.person) || state.contacts[0];
+    const journey: OperatingJourneyModel = {
+      id,
+      type: mapDraftType(draft),
+      propertyId: firstProperty?.id || "",
+      contactIds: firstContact ? [firstContact.id] : [],
+      currentStage: draft.stage || "待確認",
+      nextStep: draft.nextAction || "確認下一步",
+      probability: Math.max(1, Math.min(99, draft.priority || 50)),
+      aiSuggestion: draft.summary || draft.reason || "AI 已建立草稿，請確認內容。",
+      reminderDate: new Date().toLocaleDateString("sv-SE"),
+      completedRecords: [],
+      history: [],
+      dealValue: Number(String(draft.estimatedDealValue).replace(/\D/g, "")) || 100,
+      urgency: draft.eventKind ? 5 : 3,
+      overdueDays: 0,
+      status: draft.waitingKind ? "等待回覆" : "待處理",
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+
+    operatingSystem.setState((current) => ({
+      ...current,
+      journeys: [journey, ...current.journeys],
+      properties: current.properties.map((property, index) =>
+        index === 0 ? { ...property, journeyIds: [journey.id, ...property.journeyIds] } : property,
+      ),
+    }));
+    setShowInbox(false);
+  }
+
+  if (!operatingSystem.ready) {
+    return (
+      <div className="loading-screen">
+        <LoaderCircle className="animate-spin" />
+        <span>載入今日工作中心</span>
+      </div>
+    );
   }
 
   return (
@@ -280,35 +174,43 @@ export function CommandCenter() {
         <div className="brand-mark">M</div>
         <div className="brand-copy">
           <strong>MG-AIOS</strong>
-          <span>Journey CRM</span>
+          <span>AI 房仲營運系統</span>
         </div>
-        <Link className="topbar-link" href="/backlog"><ClipboardList />摩擦待辦</Link>
-        <button className="icon-button" onClick={() => setShowInbox(true)} aria-label="新增 Journey"><Inbox /></button>
+        <Link className="topbar-link" href="/backlog">
+          <ClipboardList />
+          產品待辦
+        </Link>
+        <button className="icon-button" onClick={() => setShowInbox(true)} aria-label="新增 AI 摘要">
+          <Inbox />
+        </button>
       </header>
 
       <section className="decision-hero">
-        <p>AI 先做，人確認。</p>
-        <h1>今天要先做什麼？</h1>
-        <span>以物件為核心，整合客戶、Journey、修繕、文件、財務與 AI 分析。</span>
-        <button className="primary-command" onClick={() => setShowInbox(true)}><CirclePlus />新增</button>
+        <p>AI 今日工作中心</p>
+        <h1>今天先做最有成交價值的事</h1>
+        <span>首頁只回答：今天哪些工作最值得先做。AI 負責排序，人負責判斷與成交。</span>
+        <button className="primary-command" onClick={() => setShowInbox(true)}>
+          <CirclePlus />
+          新增 AI 摘要
+        </button>
       </section>
 
       <section className="decision-section">
-        <SectionTitle icon={Sparkles} title="AI Operating System" count={6} hint="Property 為核心，六大模組已接上同一份資料層" />
+        <SectionTitle icon={Sparkles} title="AI 房仲營運系統" count={6} hint="物件為核心，六大模組共用同一份資料" />
         <div className="module-overview-grid">
-          <ModuleOverviewCard icon={TrendingUp} title="Dashboard" value={`${operatingSystem.todayTopFive.length} 件`} caption="AI 今日最重要 TOP5" onClick={() => setActiveModule("dashboard")} />
-          <ModuleOverviewCard icon={Home} title="Property" value={`${operatingSystem.state.properties.length} 間`} caption="物件中心與關聯資料" onClick={() => setActiveModule("property")} />
-          <ModuleOverviewCard icon={MessageCircle} title="Contact" value={`${operatingSystem.state.contacts.length} 位`} caption="一人多角色，不重複建檔" onClick={() => setActiveModule("contact")} />
-          <ModuleOverviewCard icon={Clock3} title="Journey" value={`${operatingSystem.state.journeys.length} 條`} caption="買方、屋主、租客、修繕旅程" onClick={() => setActiveModule("journey")} />
-          <ModuleOverviewCard icon={Wrench} title="Repair" value={`${operatingSystem.todayRepairs.length} 件`} caption="今日修繕事項" onClick={() => setActiveModule("repair")} />
-          <ModuleOverviewCard icon={Inbox} title="AI Center" value={`${operatingSystem.state.aiCenter.length} 則`} caption="摘要、排序、提醒、風險" onClick={() => setActiveModule("ai")} />
+          <ModuleOverviewCard icon={TrendingUp} title="首頁" value={`${topFive.length} 件`} caption="AI 今日最重要 TOP5" onClick={() => setActiveModule("dashboard")} />
+          <ModuleOverviewCard icon={Home} title="物件中心" value={`${state.properties.length} 間`} caption="物件與關聯資料" onClick={() => setActiveModule("property")} />
+          <ModuleOverviewCard icon={MessageCircle} title="聯絡人" value={`${state.contacts.length} 位`} caption="一人多角色" onClick={() => setActiveModule("contact")} />
+          <ModuleOverviewCard icon={Clock3} title="案件旅程" value={`${state.journeys.length} 條`} caption="買方、屋主、租客、修繕" onClick={() => setActiveModule("journey")} />
+          <ModuleOverviewCard icon={Wrench} title="修繕管理" value={`${state.repairs.length} 件`} caption="報修到保固" onClick={() => setActiveModule("repair")} />
+          <ModuleOverviewCard icon={Inbox} title="AI 助理" value={`${state.aiCenter.length} 則`} caption="摘要、排序、提醒、風險" onClick={() => setActiveModule("ai")} />
         </div>
       </section>
 
       <section className="decision-section">
-        <SectionTitle icon={TrendingUp} title="AI 今天最重要 TOP5" count={operatingSystem.todayTopFive.length} hint="成交價值 × 成交機率 × 時效性 × 逾期天數" />
+        <SectionTitle icon={TrendingUp} title="今日 TOP5" count={topFive.length} hint="依成交價值、成交機率、時效性、逾期天數排序" />
         <div className="ai-priority-list">
-          {operatingSystem.todayTopFive.map((item, index) => (
+          {topFive.map((item, index) => (
             <button className="ai-priority-card" key={`${item.type}-${item.id}`} onClick={() => openPriorityItem(item)}>
               <b>{index + 1}</b>
               <div>
@@ -323,91 +225,47 @@ export function CommandCenter() {
       </section>
 
       <section className="decision-section">
-        <SectionTitle icon={AlertTriangle} title="今日營運摘要" count={operatingSystem.todayTasks.length + operatingSystem.todayRepairs.length} hint="提醒、成交機率、租賃、修繕集中看" />
+        <SectionTitle icon={AlertTriangle} title="今日提醒" count={operatingSystem.todayTasks.length + operatingSystem.todayRepairs.length} hint="待辦、風險、租賃、修繕集中看" />
         <div className="today-summary-grid">
           <Metric label="今日待辦" value={`${operatingSystem.todayTasks.length} 件`} />
           <Metric label="今日提醒" value={`${operatingSystem.aiPriorityItems.length} 件`} />
-          <Metric label="今日成交機率" value={`${operatingSystem.todayProbability}%`} />
-          <Metric label="今日租賃事項" value={`${operatingSystem.todayRentals.length} 件`} />
-          <Metric label="今日修繕事項" value={`${operatingSystem.todayRepairs.length} 件`} />
+          <Metric label="平均成交機率" value={`${operatingSystem.todayProbability}%`} />
+          <Metric label="租賃事項" value={`${operatingSystem.todayRentals.length} 件`} />
+          <Metric label="修繕事項" value={`${operatingSystem.todayRepairs.length} 件`} />
         </div>
       </section>
 
       <section className="decision-section">
-        <SectionTitle icon={TrendingUp} title="今日最重要 TOP 5" count={topFive.length} hint="依成交價值與成交率排序" />
-        <div className="journey-list">
-          {topFive.map((journey, index) => (
-            <JourneyDecisionCard
-              key={journey.id}
-              journey={journey}
-              rank={index + 1}
-              menuOpen={menuJourneyId === journey.id}
-              onOpen={() => setEditingJourney(journey)}
-              onMenu={() => setMenuJourneyId(menuJourneyId === journey.id ? null : journey.id)}
-              onEdit={() => { setEditingJourney(journey); setMenuJourneyId(null); }}
-              onDelete={() => deleteJourney(journey.id)}
-              onCopy={() => copyJourney(journey.id)}
-              onHistory={() => { setHistoryJourney(journey); setMenuJourneyId(null); }}
-              onComplete={completeJourney}
-            />
-          ))}
-        </div>
-      </section>
-
-      <section className="decision-section">
-        <SectionTitle icon={AlertTriangle} title="高優先事件" count={highPriority.length} hint="收斡旋、見面談、交屋、簽約、等待回覆永遠優先" />
-        <CompactJourneyList items={highPriority} emptyText="目前沒有高優先事件" onOpen={setEditingJourney} />
-      </section>
-
-      <section className="decision-section">
-        <SectionTitle icon={Clock3} title="等待中的案件" count={waiting.length} hint="等待屋主、買方、貸款、代書、租客" />
-        <CompactJourneyList items={waiting} emptyText="目前沒有等待中的案件" onOpen={setEditingJourney} />
-      </section>
-
-      <section className="decision-section">
-        <SectionTitle icon={Check} title="今天完成" count={completed.length} hint="完成後從主要清單消失，只留紀錄" />
-        <CompactJourneyList items={completed.slice(0, 5)} emptyText="今天尚未完成任何 Journey" onOpen={setEditingJourney} />
-      </section>
-
-      <section className="decision-section inbox-summary">
-        <SectionTitle icon={Inbox} title="AI Inbox" count={inbox.filter((item) => item.synced).length} hint="ChatGPT 已完成的新分析" />
+        <SectionTitle icon={Inbox} title="AI 收件匣" count={state.journeys.length} hint="AI 先整理，人再確認" />
         <button className="inbox-entry" onClick={() => setShowInbox(true)}>
           <Inbox />
-          <span><strong>等待 AI 整理</strong><small>貼文字、LINE 截圖或照片，MG-AIOS 自動產生 Journey 草稿。</small></span>
+          <span>
+            <strong>貼上文字或上傳截圖</strong>
+            <small>MG-AIOS 會自動整理成案件旅程草稿。</small>
+          </span>
         </button>
       </section>
 
-      {showInbox && <InboxSheet onClose={() => setShowInbox(false)} onAccept={acceptDraft} />}
       {activeModule && (
         <OperatingModulePage
           moduleKey={activeModule}
-          state={operatingSystem.state}
+          state={state}
           priorityItems={operatingSystem.aiPriorityItems}
           onClose={() => setActiveModule(null)}
-          onOpenJourney={setActiveOperatingJourney}
+          onOpenJourney={setActiveJourney}
           onOpenModule={setActiveModule}
         />
       )}
-      {activeOperatingJourney && (
+      {activeJourney && (
         <OperatingJourneyDetailPage
-          journey={activeOperatingJourney}
-          state={operatingSystem.state}
-          onClose={() => setActiveOperatingJourney(null)}
-          onEdit={() => {
-            setActiveOperatingJourney(null);
-            setActiveModule("journey");
-          }}
-          onDelete={(id) => {
-            operatingSystem.setState((current) => ({
-              ...current,
-              journeys: current.journeys.filter((entry) => entry.id !== id),
-            }));
-            setActiveOperatingJourney(null);
-          }}
+          journey={activeJourney}
+          state={state}
+          onClose={() => setActiveJourney(null)}
+          onSave={saveJourney}
+          onDelete={deleteJourney}
         />
       )}
-      {editingJourney && <JourneyEditPage journey={editingJourney} onClose={() => setEditingJourney(null)} onSave={saveJourney} />}
-      {historyJourney && <HistoryPage journey={historyJourney} onClose={() => setHistoryJourney(null)} />}
+      {showInbox && <AiInboxSheet onClose={() => setShowInbox(false)} onAccept={acceptDraft} />}
     </main>
   );
 }
@@ -415,8 +273,16 @@ export function CommandCenter() {
 function SectionTitle({ icon: Icon, title, count, hint }: { icon: typeof Sparkles; title: string; count: number; hint: string }) {
   return (
     <div className="section-heading decision-heading">
-      <span className="decision-heading-icon"><Icon /></span>
-      <div><p>{hint}</p><h2>{title}<b>{count}</b></h2></div>
+      <span className="decision-heading-icon">
+        <Icon />
+      </span>
+      <div>
+        <p>{hint}</p>
+        <h2>
+          {title}
+          <b>{count}</b>
+        </h2>
+      </div>
     </div>
   );
 }
@@ -436,13 +302,24 @@ function ModuleOverviewCard({
 }) {
   return (
     <button className="module-overview-card" onClick={onClick}>
-      <span><Icon /></span>
+      <span>
+        <Icon />
+      </span>
       <div>
         <strong>{title}</strong>
         <small>{caption}</small>
       </div>
       <b>{value}</b>
     </button>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="metric-row">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 
@@ -461,22 +338,17 @@ function OperatingModulePage({
   onOpenJourney: (journey: OperatingJourneyModel) => void;
   onOpenModule: (moduleKey: OperatingModuleKey) => void;
 }) {
-  const titles: Record<OperatingModuleKey, { title: string; subtitle: string }> = {
-    dashboard: { title: "Dashboard", subtitle: "AI 今日最重要事項" },
-    property: { title: "Property List", subtitle: "物件中心" },
-    contact: { title: "Contact List", subtitle: "客戶中心" },
-    journey: { title: "Journey List", subtitle: "成交旅程" },
-    repair: { title: "Repair List", subtitle: "修繕管理" },
-    ai: { title: "AI Center Page", subtitle: "AI 助理中心" },
-  };
+  const label = moduleLabels[moduleKey];
 
   return (
     <section className="fullscreen-editor module-list-page">
       <header className="editor-header">
-        <button className="icon-button" onClick={onClose} aria-label="返回"><X /></button>
+        <button className="icon-button" onClick={onClose} aria-label="返回">
+          <X />
+        </button>
         <div>
-          <p>{titles[moduleKey].subtitle}</p>
-          <h1>{titles[moduleKey].title}</h1>
+          <p>{label.subtitle}</p>
+          <h1>{label.title}</h1>
         </div>
       </header>
       <div className="editor-body">
@@ -490,9 +362,9 @@ function OperatingModulePage({
                   if (item.type === "Journey") {
                     const journey = state.journeys.find((entry) => entry.id === item.id);
                     if (journey) onOpenJourney(journey);
-                  } else if (item.type === "Repair") {
-                    onOpenModule("repair");
+                    return;
                   }
+                  if (item.type === "Repair") onOpenModule("repair");
                 }}
               >
                 <div>
@@ -500,30 +372,16 @@ function OperatingModulePage({
                   <span>{item.subtitle}</span>
                   <small>{item.nextStep}</small>
                 </div>
-                <em>Score {item.score}</em>
+                <em>分數 {item.score}</em>
               </button>
             ))}
           </div>
         )}
-
         {moduleKey === "property" && <PropertyList properties={state.properties} contacts={state.contacts} journeys={state.journeys} repairs={state.repairs} />}
         {moduleKey === "contact" && <ContactList contacts={state.contacts} journeys={state.journeys} properties={state.properties} />}
-        {moduleKey === "journey" && <OperatingJourneyList journeys={state.journeys} state={state} onOpenJourney={onOpenJourney} />}
+        {moduleKey === "journey" && <JourneyList journeys={state.journeys} state={state} onOpenJourney={onOpenJourney} />}
         {moduleKey === "repair" && <RepairList repairs={state.repairs} properties={state.properties} />}
-        {moduleKey === "ai" && (
-          <div className="data-list">
-            {state.aiCenter.map((item) => (
-              <article className="data-card" key={item.id}>
-                <div>
-                  <strong>{item.title}</strong>
-                  <span>{item.output}</span>
-                  <small>{item.confirmed ? "已確認" : "等待確認"}</small>
-                </div>
-                <em>{item.task}</em>
-              </article>
-            ))}
-          </div>
-        )}
+        {moduleKey === "ai" && <AiCenterList state={state} />}
       </div>
     </section>
   );
@@ -551,8 +409,8 @@ function PropertyList({
           </div>
           <em>{property.status}</em>
           <small>
-            關聯客戶 {contacts.filter((contact) => [...property.ownerIds, ...property.buyerIds, ...property.tenantIds].includes(contact.id)).length} 位｜
-            Journey {journeys.filter((journey) => journey.propertyId === property.id).length} 條｜
+            聯絡人 {contacts.filter((contact) => [...property.ownerIds, ...property.buyerIds, ...property.tenantIds].includes(contact.id)).length} 位｜
+            案件旅程 {journeys.filter((journey) => journey.propertyId === property.id).length} 條｜
             修繕 {repairs.filter((repair) => repair.propertyId === property.id).length} 件
           </small>
           <span>{property.aiAnalysis}</span>
@@ -582,7 +440,7 @@ function ContactList({
           </div>
           <em>{contact.tags.join("、") || "未標籤"}</em>
           <small>
-            Journey {journeys.filter((journey) => journey.contactIds.includes(contact.id)).length} 條｜
+            案件旅程 {journeys.filter((journey) => journey.contactIds.includes(contact.id)).length} 條｜
             關聯物件 {properties.filter((property) => [...property.ownerIds, ...property.buyerIds, ...property.tenantIds].includes(contact.id)).length} 間
           </small>
           <span>{contact.aiSummary}</span>
@@ -592,7 +450,7 @@ function ContactList({
   );
 }
 
-function OperatingJourneyList({
+function JourneyList({
   journeys,
   state,
   onOpenJourney,
@@ -604,14 +462,13 @@ function OperatingJourneyList({
   return (
     <div className="data-list">
       {journeys.map((journey) => {
-        const property = state.properties.find((item) => item.id === journey.propertyId);
-        const contacts = state.contacts.filter((contact) => journey.contactIds.includes(contact.id));
+        const property = findProperty(state, journey.propertyId);
         return (
           <button className="data-card tappable-card" key={journey.id} onClick={() => onOpenJourney(journey)}>
             <div>
-              <strong>{contacts.map((contact) => contact.name).join("、") || "未指定客戶"}</strong>
+              <strong>{contactNames(state, journey.contactIds)}</strong>
               <span>{journey.type}｜{journey.currentStage}</span>
-              <small>{property?.community || "未關聯物件"}</small>
+              <small>{property?.community || "尚未關聯物件"}</small>
             </div>
             <em>{journey.probability}%</em>
             <span>{journey.nextStep}</span>
@@ -631,7 +488,7 @@ function RepairList({ repairs, properties }: { repairs: RepairModel[]; propertie
           <article className="data-card" key={repair.id}>
             <div>
               <strong>{repair.issue}</strong>
-              <span>{property?.community || "未關聯物件"}</span>
+              <span>{property?.community || "尚未關聯物件"}</span>
               <small>{repair.quote || "尚未報價"}｜{repair.contractor || "尚未指定師傅"}</small>
             </div>
             <em>{repair.status}</em>
@@ -643,70 +500,129 @@ function RepairList({ repairs, properties }: { repairs: RepairModel[]; propertie
   );
 }
 
+function AiCenterList({ state }: { state: OperatingSystemState }) {
+  return (
+    <div className="data-list">
+      {state.aiCenter.map((item) => (
+        <article className="data-card" key={item.id}>
+          <div>
+            <strong>{item.title}</strong>
+            <span>{item.output}</span>
+            <small>{item.confirmed ? "已確認" : "等待確認"}</small>
+          </div>
+          <em>{item.task}</em>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 function OperatingJourneyDetailPage({
   journey,
   state,
   onClose,
-  onEdit,
+  onSave,
   onDelete,
 }: {
   journey: OperatingJourneyModel;
   state: OperatingSystemState;
   onClose: () => void;
-  onEdit: () => void;
+  onSave: (journey: OperatingJourneyModel) => void;
   onDelete: (id: string) => void;
 }) {
-  const property = state.properties.find((item) => item.id === journey.propertyId);
-  const contacts = state.contacts.filter((contact) => journey.contactIds.includes(contact.id));
-  const name = contacts.map((contact) => contact.name).join("、") || "未指定客戶";
+  const [draft, setDraft] = useState(journey);
+  const [editing, setEditing] = useState(false);
+  const property = findProperty(state, draft.propertyId);
+  const contacts = state.contacts.filter((contact) => draft.contactIds.includes(contact.id));
+  const name = contactNames(state, draft.contactIds);
+
+  function update<K extends keyof OperatingJourneyModel>(key: K, value: OperatingJourneyModel[K]) {
+    setDraft((current) => ({ ...current, [key]: value }));
+  }
 
   return (
     <section className="fullscreen-editor journey-detail-page">
       <header className="editor-header">
-        <button className="icon-button" onClick={onClose} aria-label="返回"><X /></button>
+        <button className="icon-button" onClick={onClose} aria-label="返回">
+          <X />
+        </button>
         <div>
-          <p>Journey Detail</p>
+          <p>案件旅程詳情</p>
           <h1>{name}</h1>
         </div>
       </header>
+
       <div className="editor-body">
         <section className="client-hero-card">
           <div>
             <h2>{name}</h2>
-            <p>{journey.type}｜{journey.currentStage}</p>
+            <p>{draft.type}｜{draft.currentStage}</p>
           </div>
           <div className="client-tags">
-            <span>成交機率 {journey.probability}%</span>
-            <span>成交價值 {journey.dealValue}</span>
-            <span>{journey.status}</span>
+            <span>成交機率 {draft.probability}%</span>
+            <span>成交價值 {draft.dealValue}</span>
+            <span>{draft.status}</span>
           </div>
         </section>
 
-        <DetailBlock title="下一步" value={journey.nextStep} />
-        <DetailBlock title="原因" value={journey.aiSuggestion || "尚未建立原因"} />
-        <DetailBlock title="風險" value={journey.overdueDays > 0 ? `已逾期 ${journey.overdueDays} 天，可能降低成交機會。` : "目前沒有逾期風險。"} />
-        <DetailBlock title="關聯物件" value={property ? `${property.community}｜${property.address}｜${property.totalPrice}` : "尚未關聯物件"} />
-        <DetailBlock title="關聯客戶" value={contacts.map((contact) => `${contact.name}（${contact.roles.join("/") || "未標籤"}）`).join("\n") || "尚未關聯客戶"} />
+        {editing ? (
+          <section className="crm-section">
+            <h3>編輯內容</h3>
+            <EditorInput label="目前階段" value={draft.currentStage} onChange={(value) => update("currentStage", value)} />
+            <EditorTextarea label="下一步" value={draft.nextStep} onChange={(value) => update("nextStep", value)} />
+            <EditorInput label="成交機率" type="number" value={String(draft.probability)} onChange={(value) => update("probability", Math.max(1, Math.min(99, Number(value) || 1)))} />
+            <EditorInput label="成交價值" type="number" value={String(draft.dealValue)} onChange={(value) => update("dealValue", Number(value) || 0)} />
+            <EditorInput label="提醒日期" type="date" value={draft.reminderDate} onChange={(value) => update("reminderDate", value)} />
+            <EditorTextarea label="AI 建議" value={draft.aiSuggestion} onChange={(value) => update("aiSuggestion", value)} />
+          </section>
+        ) : (
+          <>
+            <DetailBlock title="下一步" value={draft.nextStep} />
+            <DetailBlock title="原因" value={draft.aiSuggestion || "尚未建立原因"} />
+            <DetailBlock title="風險" value={draft.overdueDays > 0 ? `已逾期 ${draft.overdueDays} 天，可能降低成交機會。` : "目前沒有逾期風險。"} />
+            <DetailBlock title="成交價值" value={String(draft.dealValue)} />
+            <DetailBlock title="成交機率" value={`${draft.probability}%`} />
+            <DetailBlock title="關聯物件" value={property ? `${property.community}｜${property.address}｜${property.totalPrice}` : "尚未關聯物件"} />
+            <DetailBlock title="關聯客戶" value={contacts.map((contact) => `${contact.name}（${contact.roles.join("/") || "未標籤"}）`).join("\n") || "尚未關聯客戶"} />
+          </>
+        )}
 
         <section className="crm-section">
           <h3>歷程紀錄</h3>
-          {journey.history.length ? (
+          {draft.history.length ? (
             <div className="history-list">
-              {journey.history.map((entry) => (
+              {draft.history.map((entry) => (
                 <article className="history-card" key={entry.id}>
-                  <strong>{new Date(entry.changedAt).toLocaleString("zh-TW")}</strong>
+                  <strong>{formatDate(entry.changedAt)}</strong>
                   <span>{entry.changedBy}</span>
                 </article>
               ))}
             </div>
           ) : (
-            <div className="empty-state"><History /><span>尚無歷程紀錄</span></div>
+            <div className="empty-state">
+              <Clock3 />
+              <span>尚無歷程紀錄</span>
+            </div>
           )}
         </section>
       </div>
+
       <footer className="editor-actions">
-        <button type="button" onClick={onEdit}><Pencil />編輯</button>
-        <button type="button" onClick={() => onDelete(journey.id)}><Trash2 />刪除</button>
+        {editing ? (
+          <button type="button" onClick={() => onSave(draft)}>
+            <Save />
+            儲存
+          </button>
+        ) : (
+          <button type="button" onClick={() => setEditing(true)}>
+            <Pencil />
+            編輯
+          </button>
+        )}
+        <button type="button" onClick={() => onDelete(draft.id)}>
+          <Trash2 />
+          刪除
+        </button>
       </footer>
     </section>
   );
@@ -718,244 +634,6 @@ function DetailBlock({ title, value }: { title: string; value: string }) {
       <h3>{title}</h3>
       <p className="detail-text">{value}</p>
     </section>
-  );
-}
-
-function JourneyDecisionCard({
-  journey,
-  rank,
-  menuOpen,
-  onOpen,
-  onMenu,
-  onEdit,
-  onDelete,
-  onCopy,
-  onHistory,
-  onComplete,
-}: {
-  journey: JourneyCard;
-  rank: number;
-  menuOpen: boolean;
-  onOpen: () => void;
-  onMenu: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-  onCopy: () => void;
-  onHistory: () => void;
-  onComplete: (id: string) => void;
-}) {
-  return (
-    <article className="journey-card">
-      <button className="journey-card-tap" onClick={onOpen} aria-label={`編輯 ${journey.person}`} />
-      <div className="journey-rank">{rank}</div>
-      <div className="journey-main">
-        <div className="journey-topline">
-          <strong>{journey.person}</strong>
-          <span>{journey.estimatedDealValue}</span>
-        </div>
-        <button className="journey-menu-button" onClick={onMenu} aria-label="Journey 功能選單"><MoreVertical /></button>
-        {menuOpen && (
-          <div className="journey-menu">
-            <button onClick={onEdit}><Pencil />編輯</button>
-            <button onClick={onDelete}><Trash2 />刪除</button>
-            <button onClick={onCopy}><Copy />複製</button>
-            <button onClick={onHistory}><History />歷程紀錄</button>
-          </div>
-        )}
-        <dl>
-          <div><dt>Journey</dt><dd>{journey.journey}｜{journey.stage}</dd></div>
-          <div><dt>下一步</dt><dd>{journey.nextStep}</dd></div>
-          <div><dt>原因</dt><dd>{journey.reason}</dd></div>
-          <div><dt>風險</dt><dd>{journey.risk}</dd></div>
-        </dl>
-        <div className="journey-footer">
-          <span>成交率 {journey.priorityScore}%</span>
-          {journey.eventKind && <em>{journey.eventKind}</em>}
-          {journey.status !== "done" && <button onClick={(event) => { event.stopPropagation(); onComplete(journey.id); }}><Check />完成</button>}
-        </div>
-      </div>
-    </article>
-  );
-}
-
-function CompactJourneyList({ items, emptyText, onOpen }: { items: JourneyCard[]; emptyText: string; onOpen: (journey: JourneyCard) => void }) {
-  if (!items.length) {
-    return <div className="empty-state"><Check /><span>{emptyText}</span></div>;
-  }
-  return (
-    <div className="compact-list">
-      {items.map((item) => (
-        <button className="compact-card" key={item.id} onClick={() => onOpen(item)}>
-          <strong>{item.person}</strong>
-          <span>{item.eventKind || item.waitingKind || item.stage}</span>
-          <small>{item.nextStep}</small>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function JourneyEditPage({ journey, onClose, onSave }: { journey: JourneyCard; onClose: () => void; onSave: (journey: JourneyCard) => void }) {
-  const [draft, setDraft] = useState<JourneyCard>(normalizeJourney(journey));
-  const [showAiUpdate, setShowAiUpdate] = useState(false);
-
-  function update<K extends keyof JourneyCard>(key: K, value: JourneyCard[K]) {
-    setDraft((current) => ({ ...current, [key]: value }));
-  }
-
-  function applyAiDraft(aiDraft: AiJourneyDraft) {
-    setDraft((current) => ({
-      ...current,
-      person: aiDraft.person,
-      journey: aiDraft.journey,
-      stage: aiDraft.stage,
-      nextStep: aiDraft.nextAction,
-      priorityScore: aiDraft.priority,
-      estimatedDealValue: aiDraft.estimatedDealValue,
-      reason: aiDraft.reason,
-      risk: aiDraft.risk,
-      aiSuggestion: aiDraft.summary,
-      eventKind: aiDraft.eventKind || undefined,
-      waitingKind: aiDraft.waitingKind || undefined,
-    }));
-    setShowAiUpdate(false);
-  }
-
-  return (
-    <section className="fullscreen-editor">
-      <header className="editor-header">
-        <button className="icon-button" onClick={onClose} aria-label="取消"><X /></button>
-        <div>
-          <p>Edit Journey</p>
-          <h1>{draft.person || "新增 Journey"}</h1>
-        </div>
-        <button className="editor-save-mini" onClick={() => onSave(draft)}><Save />儲存</button>
-      </header>
-
-      <div className="editor-body">
-        <section className="client-hero-card">
-          <div>
-            <h2>👤 {draft.person}</h2>
-            <p>{draft.stage}</p>
-            {draft.phone && <a href={`tel:${draft.phone}`}>📞 {draft.phone}</a>}
-          </div>
-          <div className="client-tags">
-            <span>🏷️ {draft.roleTag}</span>
-            <span>🟢 {draft.status === "done" ? "已完成" : draft.stage}</span>
-            <span>🔥 {draft.potentialTag}</span>
-          </div>
-        </section>
-
-        <CrmSection title="📊 客戶儀表板">
-          <div className="client-metrics">
-            <Metric label="🤝 關係指數" value={"★".repeat(draft.relationshipLevel || 1)} />
-            <Metric label="🏡 委託機率" value={`${draft.listingProbability || draft.priorityScore}%`} />
-            <Metric label="🤝 轉介紹機率" value={`${draft.referralProbability || 50}%`} />
-            <Metric label="📈 成交價值" value={draft.dealValueLevel || draft.estimatedDealValue} />
-          </div>
-        </CrmSection>
-
-        <CrmSection title="🛣 客戶旅程">
-          <JourneyPath current={draft.stage} journey={draft.journey} />
-        </CrmSection>
-
-        <CrmSection title="📅 AI 下一步">
-          <EditorTextarea label="下一步計畫" value={draft.aiNextSteps || ""} onChange={(value) => update("aiNextSteps", value)} />
-          <button className="complete-action" onClick={() => update("status", "done")}>完成</button>
-        </CrmSection>
-
-        <CrmSection title="📝 最新追蹤">
-          <EditorTextarea label="最新追蹤" value={draft.latestFollowUp || ""} onChange={(value) => update("latestFollowUp", value)} />
-        </CrmSection>
-
-        <CrmSection title="🤖 AI 建議">
-          <EditorTextarea label="AI 建議" value={draft.aiSuggestion || ""} onChange={(value) => update("aiSuggestion", value)} />
-        </CrmSection>
-
-        <button className="ai-update-button" onClick={() => setShowAiUpdate(true)}><Sparkles />AI 更新 Journey</button>
-        <CrmSection title="👨‍👩‍👧 客戶資料">
-          <EditorTextarea label="客戶資料" value={draft.customerProfile || ""} onChange={(value) => update("customerProfile", value)} />
-        </CrmSection>
-
-        <CrmSection title="🏡 房屋資訊">
-          <EditorTextarea label="房屋資訊" value={draft.propertyInfo || ""} onChange={(value) => update("propertyInfo", value)} />
-        </CrmSection>
-
-        <CrmSection title="💬 LINE紀錄">
-          <EditorTextarea label="LINE紀錄" value={draft.lineRecords || ""} onChange={(value) => update("lineRecords", value)} />
-        </CrmSection>
-
-        <CrmSection title="📂 檔案">
-          <EditorTextarea label="檔案" value={draft.fileRecords || ""} onChange={(value) => update("fileRecords", value)} />
-        </CrmSection>
-
-        <CrmSection title="基本資料">
-          <EditorInput label="客戶姓名" value={draft.person} onChange={(value) => update("person", value)} />
-          <EditorInput label="電話" value={draft.phone || ""} onChange={(value) => update("phone", value)} />
-          <EditorInput label="標籤" value={draft.roleTag || ""} onChange={(value) => update("roleTag", value)} />
-          <EditorInput label="潛力標籤" value={draft.potentialTag || ""} onChange={(value) => update("potentialTag", value)} />
-        <label className="editor-field">
-          <span>Journey 類型</span>
-          <select value={draft.journey} onChange={(event) => update("journey", event.target.value as JourneyKind)}>
-            {journeyOptions.map((item) => <option key={item}>{item}</option>)}
-          </select>
-        </label>
-        <EditorInput label="目前階段" value={draft.stage} onChange={(value) => update("stage", value)} />
-        <EditorTextarea label="下一步" value={draft.nextStep} onChange={(value) => update("nextStep", value)} />
-        <EditorInput label="成交機率(%)" type="number" value={String(draft.priorityScore)} onChange={(value) => update("priorityScore", Math.max(1, Math.min(99, Number(value) || 1)))} />
-          <EditorInput label="關係指數(1-5)" type="number" value={String(draft.relationshipLevel || 1)} onChange={(value) => update("relationshipLevel", Math.max(1, Math.min(5, Number(value) || 1)))} />
-          <EditorInput label="委託機率(%)" type="number" value={String(draft.listingProbability || draft.priorityScore)} onChange={(value) => update("listingProbability", Math.max(1, Math.min(99, Number(value) || 1)))} />
-          <EditorInput label="轉介紹機率(%)" type="number" value={String(draft.referralProbability || 50)} onChange={(value) => update("referralProbability", Math.max(1, Math.min(99, Number(value) || 1)))} />
-        <EditorInput label="成交價值" value={draft.estimatedDealValue} onChange={(value) => update("estimatedDealValue", value)} />
-          <EditorInput label="成交價值等級" value={draft.dealValueLevel || ""} onChange={(value) => update("dealValueLevel", value)} />
-        <EditorInput label="預計成交日期" type="date" value={draft.estimatedCloseDate || ""} onChange={(value) => update("estimatedCloseDate", value)} />
-        <EditorTextarea label="原因" value={draft.reason} onChange={(value) => update("reason", value)} />
-        <EditorTextarea label="風險" value={draft.risk} onChange={(value) => update("risk", value)} />
-        <EditorTextarea label="備註" value={draft.notes || ""} onChange={(value) => update("notes", value)} />
-        </CrmSection>
-      </div>
-
-      <footer className="editor-actions">
-        <button onClick={() => onSave(draft)}><Save />儲存</button>
-        <button onClick={onClose}><X />取消</button>
-      </footer>
-
-      {showAiUpdate && <AiUpdateSheet journey={draft} onClose={() => setShowAiUpdate(false)} onApply={applyAiDraft} />}
-    </section>
-  );
-}
-
-function CrmSection({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="crm-section">
-      <h3>{title}</h3>
-      {children}
-    </section>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="metric-row">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function JourneyPath({ current, journey }: { current: string; journey: JourneyKind }) {
-  const baseSteps = journey === "屋主旅程"
-    ? ["建立關係", "開發中", "建立LINE", "持續聯絡", "委售機會", "專任委託", "成交", "售後關懷"]
-    : ["建立關係", "了解需求", "建立LINE", "持續聯絡", "看屋", "出價", "議價", "簽約", "交屋", "售後關懷"];
-  const currentIndex = Math.max(0, baseSteps.findIndex((step) => current.includes(step)));
-  return (
-    <div className="journey-path">
-      {baseSteps.map((step, index) => (
-        <span key={step} className={index < currentIndex ? "done" : index === currentIndex ? "current" : ""}>
-          {index < currentIndex ? "●" : index === currentIndex ? "●" : "○"} {step}
-        </span>
-      ))}
-    </div>
   );
 }
 
@@ -977,83 +655,24 @@ function EditorTextarea({ label, value, onChange }: { label: string; value: stri
   );
 }
 
-function HistoryPage({ journey, onClose }: { journey: JourneyCard; onClose: () => void }) {
-  return (
-    <section className="fullscreen-editor">
-      <header className="editor-header">
-        <button className="icon-button" onClick={onClose} aria-label="返回"><X /></button>
-        <div>
-          <p>歷程紀錄</p>
-          <h1>{journey.person}</h1>
-        </div>
-      </header>
-      <div className="editor-body">
-        {(journey.history || []).length === 0 ? (
-          <div className="empty-state"><History /><span>目前沒有修改紀錄</span></div>
-        ) : (
-          <div className="history-list">
-            {(journey.history || []).map((entry) => (
-              <article className="history-card" key={entry.id}>
-                <strong>{new Date(entry.changedAt).toLocaleString("zh-TW")}</strong>
-                <span>修改人：{entry.changedBy}</span>
-                <dl>
-                  <div><dt>修改前</dt><dd>{entry.before.person}｜{entry.before.stage}｜{entry.before.nextStep}</dd></div>
-                  <div><dt>修改後</dt><dd>{entry.after.person}｜{entry.after.stage}｜{entry.after.nextStep}</dd></div>
-                </dl>
-              </article>
-            ))}
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function InboxSheet({ onClose, onAccept }: { onClose: () => void; onAccept: (draft: AiJourneyDraft, source: AiInboxItem["source"]) => void }) {
-  return <AiInputSheet title="新增 Journey" submitText="開始 AI 整理" onClose={onClose} onAccept={(draft) => onAccept(draft, "ChatGPT")} />;
-}
-
-function AiUpdateSheet({ journey, onClose, onApply }: { journey: JourneyCard; onClose: () => void; onApply: (draft: AiJourneyDraft) => void }) {
-  return (
-    <AiInputSheet
-      title="AI 更新 Journey"
-      submitText="AI 分析更新"
-      initialText={`目前 Journey：${journey.person}｜${journey.journey}｜${journey.stage}\n目前下一步：${journey.nextStep}\n目前成交率：${journey.priorityScore}%`}
-      onClose={onClose}
-      onAccept={onApply}
-    />
-  );
-}
-
-function AiInputSheet({
-  title,
-  submitText,
-  initialText = "",
-  onClose,
-  onAccept,
-}: {
-  title: string;
-  submitText: string;
-  initialText?: string;
-  onClose: () => void;
-  onAccept: (draft: AiJourneyDraft) => void;
-}) {
-  const [inputType, setInputType] = useState<InputType>("text");
-  const [text, setText] = useState(initialText);
+function AiInboxSheet({ onClose, onAccept }: { onClose: () => void; onAccept: (draft: AiJourneyDraft) => void }) {
+  const [inputMode, setInputMode] = useState<InputMode>("text");
+  const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [draft, setDraft] = useState<AiJourneyDraft | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [listening, setListening] = useState(false);
+  const [draft, setDraft] = useState<AiJourneyDraft | null>(null);
+
+  const canSubmit = useMemo(() => Boolean(text.trim() || file), [text, file]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!text.trim() && !file) return;
+    if (!canSubmit) return;
     setLoading(true);
     setError("");
 
     const payload = new FormData();
-    payload.set("inputType", inputType);
+    payload.set("inputType", inputMode);
     payload.set("text", text.trim());
     if (file) payload.set("file", file);
 
@@ -1070,30 +689,7 @@ function AiInputSheet({
   }
 
   function updateDraft<K extends keyof AiJourneyDraft>(key: K, value: AiJourneyDraft[K]) {
-    setDraft((current) => current ? { ...current, [key]: value } : current);
-  }
-
-  function startVoiceInput() {
-    const speechWindow = window as SpeechWindow;
-    const SpeechRecognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setError("此瀏覽器暫不支援語音輸入，請先用鍵盤貼上內容。");
-      return;
-    }
-    const recognition = new SpeechRecognition();
-    recognition.lang = "zh-TW";
-    recognition.interimResults = false;
-    recognition.onstart = () => setListening(true);
-    recognition.onend = () => setListening(false);
-    recognition.onerror = () => {
-      setListening(false);
-      setError("語音輸入失敗，請再試一次。");
-    };
-    recognition.onresult = (event) => {
-      const spoken = Array.from(event.results).map((result) => result[0]?.transcript || "").join("");
-      setText((current) => `${current}${current ? "\n" : ""}${spoken}`);
-    };
-    recognition.start();
+    setDraft((current) => (current ? { ...current, [key]: value } : current));
   }
 
   return (
@@ -1101,35 +697,48 @@ function AiInputSheet({
       <form className="bottom-sheet inbox-compose" onSubmit={submit}>
         <div className="sheet-handle" />
         <header>
-          <div><p>AI Inbox</p><h2>{title}</h2></div>
-          <button type="button" className="icon-button" onClick={onClose}><X /></button>
+          <div>
+            <p>AI 收件匣</p>
+            <h2>新增 AI 摘要</h2>
+          </div>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="關閉">
+            <X />
+          </button>
         </header>
+
         {!draft ? (
           <>
             <div className="input-type-grid">
-              <button type="button" className={inputType === "text" ? "selected" : ""} onClick={() => setInputType("text")}><MessageCircle />貼文字</button>
-              <button type="button" className={inputType === "line" ? "selected" : ""} onClick={() => setInputType("line")}><Upload />LINE 截圖</button>
-              <button type="button" className={inputType === "photo" ? "selected" : ""} onClick={() => setInputType("photo")}><Upload />上傳照片</button>
+              <button type="button" className={inputMode === "text" ? "selected" : ""} onClick={() => setInputMode("text")}>
+                <MessageCircle />
+                貼文字
+              </button>
+              <button type="button" className={inputMode === "line" ? "selected" : ""} onClick={() => setInputMode("line")}>
+                <Upload />
+                LINE 截圖
+              </button>
+              <button type="button" className={inputMode === "photo" ? "selected" : ""} onClick={() => setInputMode("photo")}>
+                <Upload />
+                上傳照片
+              </button>
             </div>
 
             <label>
-              <span>聊天內容 / 補充內容</span>
-              <textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="貼上 LINE 對話、客戶需求、帶看心得，或補充照片內容..." />
+              <span>文字內容</span>
+              <textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="貼上客戶對話、ChatGPT 摘要、帶看心得或待辦內容。" />
             </label>
 
-            <button className="voice-button" type="button" onClick={startVoiceInput}><Mic />{listening ? "聆聽中..." : "語音輸入"}</button>
-
-            {inputType !== "text" && (
+            {inputMode !== "text" && (
               <label>
-                <span>{inputType === "line" ? "LINE 截圖" : "照片"}</span>
+                <span>{inputMode === "line" ? "LINE 截圖" : "照片"}</span>
                 <input type="file" accept="image/*" onChange={(event) => setFile(event.target.files?.[0] || null)} />
               </label>
             )}
 
             {error && <p className="form-error">{error}</p>}
-            <p>MG-AIOS 會呼叫 ChatGPT API，自動整理 Journey、下一步、成交率、原因、風險與今日優先順序。</p>
-            <button className="sheet-submit" type="submit" disabled={loading || (!text.trim() && !file)}>
-              {loading ? "AI 整理中..." : submitText}
+            <p>AI 會整理出人物、案件旅程、目前階段、優先順序、下一步與摘要。確認後才會建立。</p>
+            <button className="sheet-submit" type="submit" disabled={!canSubmit || loading}>
+              {loading ? "AI 整理中..." : "開始 AI 整理"}
             </button>
           </>
         ) : (
@@ -1138,12 +747,12 @@ function AiInputSheet({
               <span>AI 已整理，請確認</span>
               <strong>信心值 {draft.confidence}%</strong>
             </div>
-            <label><span>Person</span><input value={draft.person} onChange={(event) => updateDraft("person", event.target.value)} /></label>
-            <label><span>Journey</span><select value={draft.journey} onChange={(event) => updateDraft("journey", event.target.value as AiJourneyDraft["journey"])}>{journeyOptions.map((item) => <option key={item}>{item}</option>)}</select></label>
-            <label><span>Stage</span><input value={draft.stage} onChange={(event) => updateDraft("stage", event.target.value)} /></label>
-            <label><span>成交率</span><input type="number" min="1" max="99" value={draft.priority} onChange={(event) => updateDraft("priority", Number(event.target.value))} /></label>
-            <label><span>Next Action</span><textarea value={draft.nextAction} onChange={(event) => updateDraft("nextAction", event.target.value)} /></label>
-            <label><span>Summary</span><textarea value={draft.summary} onChange={(event) => updateDraft("summary", event.target.value)} /></label>
+            <label><span>姓名</span><input value={draft.person} onChange={(event) => updateDraft("person", event.target.value)} /></label>
+            <label><span>案件旅程</span><input value={draft.journey} onChange={(event) => updateDraft("journey", event.target.value as AiJourneyDraft["journey"])} /></label>
+            <label><span>目前階段</span><input value={draft.stage} onChange={(event) => updateDraft("stage", event.target.value)} /></label>
+            <label><span>優先順序</span><input type="number" min="1" max="99" value={draft.priority} onChange={(event) => updateDraft("priority", Number(event.target.value))} /></label>
+            <label><span>下一步</span><textarea value={draft.nextAction} onChange={(event) => updateDraft("nextAction", event.target.value)} /></label>
+            <label><span>摘要</span><textarea value={draft.summary} onChange={(event) => updateDraft("summary", event.target.value)} /></label>
             <div className="preview-actions">
               <button type="button" onClick={() => onAccept(draft)}>接受</button>
               <button type="button" onClick={() => setDraft(null)}>修改</button>
