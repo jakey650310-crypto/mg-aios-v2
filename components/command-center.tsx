@@ -50,7 +50,7 @@ const moduleLabels: Record<OperatingModuleKey, { title: string; subtitle: string
   journey: { title: "案件旅程", subtitle: "下一步、原因、風險" },
   repair: { title: "修繕管理", subtitle: "報修、估價、施工、保固" },
   calendar: { title: "日曆中心", subtitle: "所有時間都從這裡管理" },
-  marketing: { title: "行銷中心", subtitle: "建立一次，到處發布" },
+  marketing: { title: "行銷中心", subtitle: "自動整理 Prompt，交給 ChatGPT 完成" },
   closing: { title: "成交中心", subtitle: "成交紀錄、公司請款、佣金" },
   documents: { title: "文件中心", subtitle: "文件綁定物件與案件" },
   ai: { title: "AI 助理", subtitle: "整理、排序、提醒、產生內容" },
@@ -241,7 +241,7 @@ export function CommandCenter() {
           <button onClick={() => setActiveModule("property")}><Home />物件</button>
           <button onClick={() => setActiveModule("journey")}><Clock3 />案件</button>
           <button onClick={() => setActiveModule("calendar")}><CalendarDays />日曆</button>
-          <button onClick={() => setActiveModule("marketing")}><Megaphone />行銷</button>
+          <button onClick={() => setActiveModule("marketing")}><Megaphone />Prompt</button>
           <button onClick={() => setActiveModule("closing")}><Check />成交</button>
           <button onClick={() => setActiveModule("documents")}><ClipboardList />文件</button>
         </div>
@@ -487,7 +487,7 @@ function PropertyList({
           currentStage: "建立案件",
           nextStep: "補齊物件資料並產生行銷素材",
           probability: 60,
-          aiSuggestion: "先完成物件資料，再進入行銷中心一鍵生成素材。",
+          aiSuggestion: "先完成物件資料，再進入行銷中心建立 ChatGPT Prompt。",
           reminderDate: new Date().toLocaleDateString("sv-SE"),
           completedRecords: [],
           history: [],
@@ -806,7 +806,9 @@ function createMarketingContent(property: PropertyModel, platform: MarketingPlat
     propertyId: property.id,
     platform,
     title: `${property.community}｜${label}`,
-    content: generateMarketingCopy(property, platform),
+    prompt: buildChatGptPrompt(property, platform),
+    content: "",
+    version: 1,
     publishStatus: "Draft",
     propertyPriceSnapshot: property.totalPrice,
     generatedAt,
@@ -814,7 +816,7 @@ function createMarketingContent(property: PropertyModel, platform: MarketingPlat
   };
 }
 
-function generateMarketingCopy(property: PropertyModel, platform: MarketingPlatform) {
+function buildChatGptPrompt(property: PropertyModel, platform: MarketingPlatform) {
   const base = {
     name: property.community || "精選物件",
     address: property.address || "地址待確認",
@@ -823,24 +825,25 @@ function generateMarketingCopy(property: PropertyModel, platform: MarketingPlatf
     area: property.area || "坪數待確認",
     analysis: property.aiAnalysis || "生活機能與物件條件待補充。",
   };
+  const common = `你是住商不動產南崁光明加盟店的房仲文案助手。請根據以下物件資料撰寫內容，不要臆測未提供資料。\n\n物件資料：\n社區：${base.name}\n地址：${base.address}\n類型：${base.type}\n總價：${base.price}\n坪數：${base.area}\nAI 分析：${base.analysis}\n\n寫作風格：自然、親切、務實、像 LINE 對話，不浮誇、不製造不實資訊。`;
 
   switch (platform) {
     case "591":
-      return `【${base.name}】${base.type}｜${base.price}\n\n地址：${base.address}\n坪數：${base.area}\n\n物件重點：\n${base.analysis}\n\n適合想要快速掌握區域、價格與生活機能的買方。照片只能看出部分感受，建議現場看採光、格局與生活動線。`;
+      return `${common}\n\n平台：591\n請產生：\n1. 30 字內標題\n2. 500-700 字刊登文\n3. 五大亮點\n4. 適合客群\n5. 預約賞屋 CTA`;
     case "Facebook":
-      return `━━━━━━━━━━\n🏡 ${base.name}\n✨ ${base.type}｜${base.price}\n━━━━━━━━━━\n\n📍 地址：${base.address}\n📐 坪數：${base.area}\n\n✨ 物件亮點\n${base.analysis}\n\n📲 想了解更多或安排看屋，歡迎直接私訊。`;
+      return `${common}\n\n平台：Facebook\n請產生分段美編貼文，包含售價資訊、房屋資訊、五大特色、生活機能、適合客群、預約賞屋。`;
     case "LINE":
-      return `${base.name}\n${base.type}｜${base.price}\n地址：${base.address}\n坪數：${base.area}\n\n這間我覺得可以安排看一下，重點是：${base.analysis}`;
+      return `${common}\n\n平台：LINE\n請產生可直接傳給買方的短訊息，簡短、自然、不給壓力。`;
     case "Instagram":
-      return `${base.name}｜${base.price}\n\n${base.type}，${base.area}\n${base.address}\n\n${base.analysis}\n\n#桃園房仲 #南崁房仲 #買房 #看屋`;
+      return `${common}\n\n平台：Instagram\n請產生圖片貼文 caption，含自然 hashtag，不要堆疊關鍵字。`;
     case "Threads":
-      return `${base.name}，${base.price}。\n${base.type}、${base.area}，位置在 ${base.address}。\n\n重點：${base.analysis}\n\n這種物件適合想先看生活機能與實際居住感的人。`;
+      return `${common}\n\n平台：Threads\n請產生口語短貼文，重點明確，像真實房仲分享。`;
     case "YouTubeShorts":
-      return `開場：今天帶你看 ${base.name}。\n\n重點一：${base.type}，開價 ${base.price}。\n重點二：坪數 ${base.area}，地址在 ${base.address}。\n重點三：${base.analysis}\n\n結尾：想看更多現場細節，可以留言或私訊預約看屋。`;
+      return `${common}\n\n平台：YouTube Shorts\n請產生 40-60 秒短影音腳本，包含前三秒鉤子、畫面建議、口播、結尾 CTA。`;
     case "TikTok":
-      return `前三秒：${base.price} 可以看這間嗎？\n\n畫面一：社區外觀，字幕 ${base.name}\n畫面二：室內空間，字幕 ${base.type}｜${base.area}\n畫面三：生活機能，字幕 ${base.address}\n\n口播：${base.analysis}\n\n結尾：想看完整物件，私訊我。`;
+      return `${common}\n\n平台：TikTok\n請產生節奏快的短影音腳本，包含前三秒鉤子、字幕、口播與 CTA。`;
     case "SalesPresentation":
-      return `售屋簡報｜${base.name}\n\n一、物件基本資料\n地址：${base.address}\n類型：${base.type}\n總價：${base.price}\n坪數：${base.area}\n\n二、AI 重點分析\n${base.analysis}\n\n三、建議銷售角度\n以生活機能、總價帶與實際居住情境切入，讓買方快速理解為什麼值得現場看。`;
+      return `${common}\n\n輸出：售屋簡報草稿\n請產生簡報大綱、每頁標題、每頁重點、適合放的圖片類型與銷售說法。`;
   }
 }
 
@@ -860,7 +863,7 @@ function MarketingCenter({
           ? {
               ...existing,
               title: next.title,
-              content: next.content,
+              prompt: next.prompt,
               propertyPriceSnapshot: property.totalPrice,
               publishStatus: existing.publishStatus === "Archived" ? "Archived" : "Draft",
               updatedAt: nowIso(),
@@ -885,7 +888,7 @@ function MarketingCenter({
         item.propertyId === property.id
           ? {
               ...item,
-              content: generateMarketingCopy(property, item.platform),
+              prompt: buildChatGptPrompt(property, item.platform),
               propertyPriceSnapshot: property.totalPrice,
               publishStatus: item.publishStatus === "Published" ? "NeedUpdate" : item.publishStatus,
               updatedAt: nowIso(),
@@ -902,6 +905,28 @@ function MarketingCenter({
         item.id === contentId ? { ...item, publishStatus, updatedAt: nowIso() } : item,
       ),
     }));
+  }
+
+  function saveFinalVersion(contentId: string, content: string) {
+    onSetState((current) => ({
+      ...current,
+      marketingContents: current.marketingContents.map((item) =>
+        item.id === contentId
+          ? {
+              ...item,
+              content,
+              version: (item.version || 1) + 1,
+              publishStatus: "Draft",
+              updatedAt: nowIso(),
+            }
+          : item,
+      ),
+    }));
+  }
+
+  async function openInChatGpt(prompt: string) {
+    await navigator.clipboard?.writeText(prompt);
+    window.open("https://chat.openai.com/", "_blank", "noopener,noreferrer");
   }
 
   function updatePropertyPrice(propertyId: string, totalPrice: string) {
@@ -945,7 +970,7 @@ function MarketingCenter({
             )}
 
             <button className="sheet-submit compact-submit" type="button" onClick={() => generateAll(property)}>
-              一鍵生成全部素材
+              一鍵建立全部 ChatGPT Prompt
             </button>
 
             <div className="marketing-content-grid">
@@ -957,12 +982,21 @@ function MarketingCenter({
                       <strong>{label}</strong>
                       <em>{content ? publishStatusLabels[content.publishStatus] : "尚未生成"}</em>
                     </div>
-                    <p>{content?.content || "按「一鍵生成全部素材」後，系統會直接從物件資料產生內容。"}</p>
+                    <p>{content?.prompt || "按「一鍵建立全部 ChatGPT Prompt」後，系統會從物件資料自動整理 Prompt，不重複輸入資料。"}</p>
                     {content && (
-                      <div className="marketing-actions">
-                        <button type="button" onClick={() => changeStatus(content.id, "Published")}>標記已發布</button>
-                        <button type="button" onClick={() => changeStatus(content.id, "NeedUpdate")}>需要更新</button>
-                        <button type="button" onClick={() => changeStatus(content.id, "Archived")}>封存</button>
+                      <div className="marketing-version-box">
+                        <button className="chatgpt-launch-button" type="button" onClick={() => openInChatGpt(content.prompt)}>
+                          在 ChatGPT 開啟
+                        </button>
+                        <label className="editor-field">
+                          <span>貼回 ChatGPT 最終版本｜第 {content.version || 1} 版</span>
+                          <textarea value={content.content} onChange={(event) => saveFinalVersion(content.id, event.target.value)} placeholder="在 ChatGPT 完成後，把最終文案貼回這裡保存版本。" />
+                        </label>
+                        <div className="marketing-actions">
+                          <button type="button" onClick={() => changeStatus(content.id, "Published")}>標記已發布</button>
+                          <button type="button" onClick={() => changeStatus(content.id, "NeedUpdate")}>需要更新</button>
+                          <button type="button" onClick={() => changeStatus(content.id, "Archived")}>封存</button>
+                        </div>
                       </div>
                     )}
                   </article>
@@ -1079,7 +1113,7 @@ function ClosingCenter({
       <div className="workflow-nav">
         <button onClick={() => onOpenModule("property")}><Home />物件</button>
         <button onClick={() => onOpenModule("journey")}><Clock3 />案件</button>
-        <button onClick={() => onOpenModule("marketing")}><Megaphone />行銷</button>
+        <button onClick={() => onOpenModule("marketing")}><Megaphone />Prompt</button>
         <button onClick={() => onOpenModule("documents")}><ClipboardList />文件</button>
       </div>
 

@@ -220,7 +220,9 @@ export interface MarketingContentModel {
   propertyId: string;
   platform: MarketingPlatform;
   title: string;
+  prompt: string;
   content: string;
+  version: number;
   publishStatus: PublishStatus;
   propertyPriceSnapshot: string;
   generatedAt: string;
