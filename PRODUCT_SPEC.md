@@ -1,14 +1,14 @@
-# MG-AIOS Product Specification v1.0
+# MG-AIOS Product Specification v4.0
 
 ## 產品定位
 
 MG-AIOS 不是 CRM，也不是另一個 AI。
 
-MG-AIOS 是 AI 工作中心。
+MG-AIOS 是 AI 工作平台。
 
-ChatGPT、Claude、Gemini 負責思考。
+ChatGPT、Claude、Gemini 負責思考、推理、分析、文案、話術、策略與問答。
 
-MG-AIOS 負責整理、保存、分類、提醒。
+MG-AIOS 負責工作中心、CRM、Case、Contact、Property、Timeline、Event、Journey、AI Knowledge、搜尋、提醒、Dashboard 與 AI Workspace。
 
 蔡名廣負責建立關係、判斷機會、促成成交。
 
@@ -23,7 +23,7 @@ AI 負責：
 - 市場分析
 - 自由詢問
 
-MG-AIOS 不負責思考，也不重複開發 ChatGPT 已經做得好的能力。
+MG-AIOS 不重新做 AI。MG-AIOS 管理 AI。
 
 ## 開發原則
 
@@ -41,7 +41,7 @@ MG-AIOS 不負責思考，也不重複開發 ChatGPT 已經做得好的能力。
 - 修繕管理
 - 文件中心
 - 行銷中心
-- AI 助理
+- AI 工作台
 - 設定
 
 不要出現不必要的英文介面。
@@ -101,7 +101,7 @@ Case 包含：
 - 最近學到
 - 長期判斷
 
-今日工作、Calendar、AI 任務、Journey 都不是獨立資料來源，而是 Case 的不同 View。
+今日工作、Calendar、AI 工作台、Journey 都不是獨立資料來源，而是 Case 的不同 View。
 
 ### Google Calendar 原則
 
@@ -171,15 +171,21 @@ AI 永遠知道目前在哪一個階段，並推薦：
 - 付款
 - 保固
 
-### 6. AI 店長
+### 6. AI 工作台
 
-AI 店長可以：
-- 整理摘要
-- 分析成交率
-- 排序今天工作
-- 生成 LINE 話術
-- 生成追蹤建議
-- 提醒風險
+AI 工作台不是聊天視窗，而是所有 AI 工具入口。
+
+可接入：
+- ChatGPT
+- Claude
+- Gemini
+- Perplexity
+- Canva
+- Google Calendar
+- Gmail
+- LINE
+- 591
+- Facebook
 
 ## 下一階段
 
@@ -189,7 +195,7 @@ AI 店長可以：
 - 財務中心
 - 行銷中心
 
-## AI 任務
+## AI Workspace
 
 不要重複開發 ChatGPT 已經做得好的 AI 生成能力。
 
@@ -215,7 +221,7 @@ AI 任務類型包含：
 
 使用者只做三件事：
 
-1. 點 AI 店長。
+1. 進入 AI 工作台。
 2. 與 ChatGPT / Claude / Gemini 對話。
 3. 將 AI 回答貼回 MG-AIOS。
 
@@ -239,6 +245,22 @@ MG-AIOS 收到 AI 回答後自動完成：
 長期判斷：只保存長期有效知識，可以被更新覆蓋。
 
 Timeline：只記錄發生過什麼，不放分析。
+
+## 產品發展三階段
+
+### Phase 1：AI Workspace
+
+管理 AI 工具，整理 AI 回答，建立知識。
+
+### Phase 2：AI Assistant
+
+開始理解案件，開始主動提醒。
+
+### Phase 3：AI Manager
+
+每天主動安排工作，主動分析、排序、提醒。
+
+目前只做 Phase 1，不提前假裝 MG-AIOS 已經是 AI Manager。
 
 ## 文件中心
 

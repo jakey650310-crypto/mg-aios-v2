@@ -55,7 +55,7 @@ const moduleLabels: Record<OperatingModuleKey, { title: string; subtitle: string
   marketing: { title: "行銷中心", subtitle: "自動整理案件資料，交給 ChatGPT 完成" },
   closing: { title: "成交中心", subtitle: "成交紀錄、公司請款、佣金" },
   documents: { title: "文件中心", subtitle: "文件綁定物件與案件" },
-  ai: { title: "AI 店長", subtitle: "決定今天，影響明天" },
+  ai: { title: "AI 工作台", subtitle: "所有 AI 工具的工作入口" },
 };
 
 function nowIso() {
@@ -248,9 +248,9 @@ export function CommandCenter() {
       </header>
 
       <section className="decision-hero">
-        <p>AI 店長今日提醒</p>
-        <h1>今天最值得做什麼？</h1>
-        <span>不要做十件事。先做最有成交價值、最能推進關係的三到五件事。</span>
+        <p>AI Workspace</p>
+        <h1>今天先完成這件事，我已經幫你準備好了。</h1>
+        <span>MG-AIOS 管理案件脈絡與 AI 工具入口。ChatGPT / Claude / Gemini 負責思考，使用者負責成交。</span>
         <button className="primary-command" onClick={() => setShowInbox(true)}>
           <CirclePlus />
           新增 AI 摘要
@@ -258,7 +258,7 @@ export function CommandCenter() {
       </section>
 
       <section className="decision-section">
-        <SectionTitle icon={TrendingUp} title="今天最值得做的五件事" count={topFive.length} hint="AI 店長已依成交價值、關係推進與時效排序" />
+        <SectionTitle icon={TrendingUp} title="今天最值得做的五件事" count={topFive.length} hint="依案件脈絡、成交價值、關係推進與時效排序" />
         <div className="ai-priority-list">
           {topFive.map((item, index) => (
             <button className="ai-priority-card" key={`${item.type}-${item.id}`} onClick={() => openPriorityItem(item)}>
@@ -1466,7 +1466,7 @@ const promptModeDescriptions = {
   "591 文案": "依案件資料準備 591 刊登任務。",
   "FB 文案": "依案件資料準備 Facebook 貼文任務。",
   "短影音腳本": "依案件資料準備短影音腳本任務。",
-  "自由詢問": "你可以直接問 AI 店長任何與案件有關的問題。",
+  "自由詢問": "你可以把案件問題交給 AI 工具處理，MG-AIOS 會準備完整脈絡。",
 } satisfies Record<PromptTemplateType, string>;
 
 function CaseDetailPage({
@@ -1741,7 +1741,7 @@ function CaseDetailPage({
       setAiMessage("建立 AI 任務中...");
       await navigator.clipboard.writeText(prompt);
       setAiMessage("完成。請開啟 ChatGPT / Claude / Gemini 後直接貼上。");
-      setAiToast("✓ Prompt 已複製");
+      setAiToast("✓ 任務內容已複製");
       return prompt;
     } catch {
       setAiMessage("任務已準備好，但瀏覽器未允許自動複製。");
@@ -1758,7 +1758,7 @@ function CaseDetailPage({
       gemini: "https://gemini.google.com/app",
     };
     if (!generatedPrompt) await generatePrompt();
-    setAiToast("✓ Prompt 已複製，請直接貼上即可");
+    setAiToast("✓ 任務內容已複製，請直接貼上即可");
     window.open(urls[tool], "_blank", "noopener,noreferrer");
   }
 
@@ -1862,7 +1862,7 @@ function CaseDetailPage({
           </div>
           <button className="sheet-submit compact-submit" type="button" onClick={() => setShowAiAssistant(true)}>
             <Sparkles />
-            AI 店長
+            AI 工作台
           </button>
         </section>
 
@@ -1983,8 +1983,8 @@ function CaseDetailPage({
             {aiToast && <div className="floating-toast">{aiToast}</div>}
             <header>
               <div>
-                <p>AI 店長</p>
-                <h2>你今天要完成什麼？</h2>
+                <p>AI Workspace</p>
+                <h2>你要用哪個 AI 工具完成工作？</h2>
               </div>
               <button type="button" className="icon-button" onClick={() => setShowAiAssistant(false)} aria-label="關閉">
                 <X />

@@ -9,6 +9,11 @@ MG-AIOS 採用 Daily Build。
 
 ### 今天新增什麼
 
+- V4 產品定位校正：MG-AIOS 是 AI 工作平台，不是 CRM、Notion 或另一個 ChatGPT。
+- 介面名稱從「AI 店長」調整為「AI 工作台」。
+- 首頁文案改為 AI Workspace：MG-AIOS 管理案件脈絡與 AI 工具入口，ChatGPT / Claude / Gemini 負責思考，使用者負責成交。
+- 產品規格新增三階段：Phase 1 AI Workspace、Phase 2 AI Assistant、Phase 3 AI Manager。
+- 明確規定目前只做 Phase 1，不提前假裝 MG-AIOS 已經是 AI Manager。
 - V3.1 UX P0：AI 店長九宮格模式可正常切換，並顯示目前模式與目的。
 - 「準備 AI 任務」新增 Loading 狀態：整理案件資料、建立任務、完成複製。
 - 新增 Toast：「✓ Prompt 已複製」與「✓ AI 回答已解析」。
