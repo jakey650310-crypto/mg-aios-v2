@@ -52,10 +52,10 @@ const moduleLabels: Record<OperatingModuleKey, { title: string; subtitle: string
   contact: { title: "聯絡人", subtitle: "一位人只有一份資料" },
   journey: { title: "案件旅程", subtitle: "下一步、原因、風險" },
   repair: { title: "修繕管理", subtitle: "報修、估價、施工、保固" },
-  marketing: { title: "行銷中心", subtitle: "自動整理 Prompt，交給 ChatGPT 完成" },
+  marketing: { title: "行銷中心", subtitle: "自動整理案件資料，交給 ChatGPT 完成" },
   closing: { title: "成交中心", subtitle: "成交紀錄、公司請款、佣金" },
   documents: { title: "文件中心", subtitle: "文件綁定物件與案件" },
-  ai: { title: "AI 助理", subtitle: "整理、排序、提醒、產生內容" },
+  ai: { title: "AI 店長", subtitle: "決定今天，影響明天" },
 };
 
 function nowIso() {
@@ -248,9 +248,9 @@ export function CommandCenter() {
       </header>
 
       <section className="decision-hero">
-        <p>AI 今日工作中心</p>
-        <h1>今天先做最有成交價值的事</h1>
-        <span>首頁只回答：今天哪些工作最值得先做。AI 負責排序，人負責判斷與成交。</span>
+        <p>AI 店長今日提醒</p>
+        <h1>今天最值得做什麼？</h1>
+        <span>不要做十件事。先做最有成交價值、最能推進關係的三到五件事。</span>
         <button className="primary-command" onClick={() => setShowInbox(true)}>
           <CirclePlus />
           新增 AI 摘要
@@ -258,7 +258,7 @@ export function CommandCenter() {
       </section>
 
       <section className="decision-section">
-        <SectionTitle icon={TrendingUp} title="今天先做五件事" count={topFive.length} hint="依成交價值、成交機率、時效性、逾期天數排序" />
+        <SectionTitle icon={TrendingUp} title="今天最值得做的五件事" count={topFive.length} hint="AI 店長已依成交價值、關係推進與時效排序" />
         <div className="ai-priority-list">
           {topFive.map((item, index) => (
             <button className="ai-priority-card" key={`${item.type}-${item.id}`} onClick={() => openPriorityItem(item)}>
@@ -276,11 +276,11 @@ export function CommandCenter() {
       </section>
 
       <section className="decision-section">
-        <SectionTitle icon={Sparkles} title="流程導航" count={5} hint="物件 → 案件 → 行銷 → 成交 → 文件" />
+        <SectionTitle icon={Sparkles} title="工作區" count={5} hint="需要查資料時才進入，不是首頁重點" />
         <div className="workflow-nav">
           <button onClick={() => setActiveModule("property")}><Home />物件</button>
           <button onClick={() => setActiveModule("journey")}><Clock3 />案件</button>
-          <button onClick={() => setActiveModule("marketing")}><Megaphone />Prompt</button>
+          <button onClick={() => setActiveModule("marketing")}><Megaphone />行銷</button>
           <button onClick={() => setActiveModule("closing")}><Check />成交</button>
           <button onClick={() => setActiveModule("documents")}><ClipboardList />文件</button>
         </div>
@@ -550,7 +550,7 @@ function PropertyList({
           currentStage: "建立案件",
           nextStep: "補齊物件資料並產生行銷素材",
           probability: 60,
-          aiSuggestion: "先完成物件資料，再進入行銷中心建立 ChatGPT Prompt。",
+          aiSuggestion: "先完成物件資料，再進入行銷中心準備 AI 任務。",
           reminderDate: new Date().toLocaleDateString("sv-SE"),
           completedRecords: [],
           history: [],
@@ -1184,7 +1184,7 @@ function MarketingCenter({
             )}
 
             <button className="sheet-submit compact-submit" type="button" onClick={() => generateAll(property)}>
-              一鍵建立全部 ChatGPT Prompt
+              一鍵準備全部平台任務
             </button>
 
             <div className="marketing-content-grid">
@@ -1196,11 +1196,11 @@ function MarketingCenter({
                       <strong>{label}</strong>
                       <em>{content ? publishStatusLabels[content.publishStatus] : "尚未生成"}</em>
                     </div>
-                    <p>{content?.prompt || "按「一鍵建立全部 ChatGPT Prompt」後，系統會從物件資料自動整理 Prompt，不重複輸入資料。"}</p>
+                    <p>{content ? "AI 任務已準備好，不需要重複輸入物件資料。" : "按「一鍵準備全部平台任務」後，系統會從物件資料自動整理，不重複輸入資料。"}</p>
                     {content && (
                       <div className="marketing-version-box">
                         <button className="chatgpt-launch-button" type="button" onClick={() => openInChatGpt(content.prompt)}>
-                          在 ChatGPT 開啟
+                          開啟 ChatGPT 生成
                         </button>
                         <label className="editor-field">
                           <span>貼回 ChatGPT 最終版本｜第 {content.version || 1} 版</span>
@@ -1333,7 +1333,7 @@ function ClosingCenter({
       <div className="workflow-nav">
         <button onClick={() => onOpenModule("property")}><Home />物件</button>
         <button onClick={() => onOpenModule("journey")}><Clock3 />案件</button>
-        <button onClick={() => onOpenModule("marketing")}><Megaphone />Prompt</button>
+        <button onClick={() => onOpenModule("marketing")}><Megaphone />行銷</button>
         <button onClick={() => onOpenModule("documents")}><ClipboardList />文件</button>
       </div>
 
@@ -1713,12 +1713,12 @@ function CaseDetailPage({
     const context = buildCaseContext(state, liveCase);
     const prompt = buildPromptFromTemplate(context, type, customQuestion);
     setGeneratedPrompt(prompt);
-    setAiMessage("Prompt 已產生。");
+    setAiMessage("AI 店長已準備好任務。");
     try {
       await navigator.clipboard.writeText(prompt);
-      setAiMessage("Prompt 已複製，可貼到 ChatGPT / Claude / Gemini。");
+      setAiMessage("已複製任務內容。請開啟 ChatGPT / Claude / Gemini 後直接貼上。");
     } catch {
-      setAiMessage("Prompt 已產生，但瀏覽器未允許自動複製。");
+      setAiMessage("任務已準備好，但瀏覽器未允許自動複製。");
     }
   }
 
@@ -1817,7 +1817,7 @@ function CaseDetailPage({
           </div>
           <button className="sheet-submit compact-submit" type="button" onClick={() => setShowAiAssistant(true)}>
             <Sparkles />
-            AI 助理
+            AI 店長
           </button>
         </section>
 
@@ -1924,10 +1924,10 @@ function CaseDetailPage({
         </section>
 
         <section className="crm-section">
-          <h3>AI 建議</h3>
-          <DetailBlock title="AI Summary" value={liveCase.aiSummary || "尚未建立"} />
-          <DetailBlock title="AI Insight" value={liveCase.aiInsight || "尚未建立"} />
-          <DetailBlock title="AI 長期理解" value={liveCase.aiBrain || "尚未建立"} />
+          <h3>AI 已完成分析</h3>
+          <DetailBlock title="今天建議" value={liveCase.aiSummary || "尚未建立"} />
+          <DetailBlock title="最近學到" value={liveCase.aiInsight || "尚未建立"} />
+          <DetailBlock title="長期判斷" value={liveCase.aiBrain || "尚未建立"} />
         </section>
       </div>
 
@@ -1937,8 +1937,8 @@ function CaseDetailPage({
             <div className="sheet-handle" />
             <header>
               <div>
-                <p>Case → Context → Prompt</p>
-                <h2>AI 助理</h2>
+                <p>AI 店長</p>
+                <h2>你今天要完成什麼？</h2>
               </div>
               <button type="button" className="icon-button" onClick={() => setShowAiAssistant(false)} aria-label="關閉">
                 <X />
@@ -1955,14 +1955,14 @@ function CaseDetailPage({
               <EditorTextarea label="想問 AI 什麼" value={customQuestion} onChange={setCustomQuestion} />
             )}
             <button className="sheet-submit" type="button" onClick={() => void generatePrompt()}>
-              產生並複製 Prompt
+              準備 AI 任務
             </button>
             {aiMessage && <p>{aiMessage}</p>}
-            {generatedPrompt && <textarea className="prompt-preview" value={generatedPrompt} readOnly />}
+            {generatedPrompt && <p>任務內容已在背景準備好，不需要手動整理案件資料。</p>}
             <div className="marketing-actions">
-              <button type="button" onClick={() => openAiTool("chatgpt")}>開啟 ChatGPT</button>
-              <button type="button" onClick={() => openAiTool("claude")}>開啟 Claude</button>
-              <button type="button" onClick={() => openAiTool("gemini")}>開啟 Gemini</button>
+              <button type="button" onClick={() => openAiTool("chatgpt")}>開啟 ChatGPT 生成</button>
+              <button type="button" onClick={() => openAiTool("claude")}>開啟 Claude 生成</button>
+              <button type="button" onClick={() => openAiTool("gemini")}>開啟 Gemini 生成</button>
             </div>
             <EditorTextarea label="AI 回答｜貼上 ChatGPT / Claude / Gemini 回答" value={aiResponse} onChange={setAiResponse} />
             <button className="sheet-submit" type="button" onClick={parseAiResponse}>

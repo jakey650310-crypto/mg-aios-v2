@@ -97,11 +97,11 @@ Case 包含：
 - Tasks
 - Notes
 - Files
-- AI Summary
-- AI Insight
-- AI Brain
+- 今天建議
+- 最近學到
+- 長期判斷
 
-AI Today、Calendar、Prompt、Journey 都不是獨立資料來源，而是 Case 的不同 View。
+今日工作、Calendar、AI 任務、Journey 都不是獨立資料來源，而是 Case 的不同 View。
 
 ### Google Calendar 原則
 
@@ -130,9 +130,9 @@ AI 今日工作中心。
 - 事件
 - 待辦
 - 文件
-- AI Summary
-- AI Insight
-- AI Brain
+- 今天建議
+- 最近學到
+- 長期判斷
 
 ### 3. 聯絡人
 
@@ -171,9 +171,9 @@ AI 永遠知道目前在哪一個階段，並推薦：
 - 付款
 - 保固
 
-### 6. AI 助理
+### 6. AI 店長
 
-AI 可以：
+AI 店長可以：
 - 整理摘要
 - 分析成交率
 - 排序今天工作
@@ -189,18 +189,18 @@ AI 可以：
 - 財務中心
 - 行銷中心
 
-## Prompt Launcher
+## AI 任務
 
 不要重複開發 ChatGPT 已經做得好的 AI 生成能力。
 
 MG-AIOS 負責：
-- 整理 Case Context
-- 產生 Prompt
-- 複製 Prompt
+- 整理案件完整脈絡
+- 在背景準備 AI 任務
+- 複製任務內容
 - 開啟 ChatGPT / Claude / Gemini
 - 儲存 AI 回答結果
 
-Prompt Template 包含：
+AI 任務類型包含：
 - 快速摘要
 - LINE 回覆
 - 電話話術
@@ -215,28 +215,28 @@ Prompt Template 包含：
 
 使用者只做三件事：
 
-1. 點 AI 助理。
+1. 點 AI 店長。
 2. 與 ChatGPT / Claude / Gemini 對話。
 3. 將 AI 回答貼回 MG-AIOS。
 
 MG-AIOS 收到 AI 回答後自動完成：
 
-- 萃取 AI Summary
-- 萃取 AI Insight
-- 更新 AI Brain
+- 萃取今天建議
+- 萃取最近學到
+- 更新長期判斷
 - 新增 Timeline / Event
 - 更新案件建議
 - 更新今日工作排序
 
 使用者不需要判斷資料要存到哪裡。
 
-### AI Memory 原則
+### AI 學習原則
 
-AI Summary：只保留本次 AI 重點。
+今天建議：只保留本次 AI 重點。
 
-AI Insight：只保留會影響下一次成交判斷的洞察。
+最近學到：只保留會影響下一次成交判斷的洞察。
 
-AI Brain：只保存長期有效知識，可以被更新覆蓋。
+長期判斷：只保存長期有效知識，可以被更新覆蓋。
 
 Timeline：只記錄發生過什麼，不放分析。
 
