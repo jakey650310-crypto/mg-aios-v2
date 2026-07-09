@@ -9,6 +9,11 @@ MG-AIOS 採用 Daily Build。
 
 ### 今天新增什麼
 
+- V3 產品定位調整：MG-AIOS 是 AI 工作中心，不是另一個 AI。
+- AI 助理回寫流程改為一顆「解析 AI 回答」。
+- 移除「存成 AI Summary」「存成 AI Insight」「更新 AI Brain」「寫入案件紀錄」四個手動分類按鈕。
+- 貼上 ChatGPT / Claude / Gemini 回答後，MG-AIOS 會自動萃取 Summary、Insight、Brain、Timeline，並更新 Journey 建議與今日排序。
+- 解析 AI 回答採用本機規則式整理，不呼叫 OpenAI API，不產生 API 費用。
 - 完成 P0 核心重構第一版：Case 成為系統中心。
 - 新增 Case Detail 頁，集中顯示 Journey、案件紀錄、Google Calendar、Tasks、Notes、Files、AI 建議。
 - Google Calendar 不再是獨立模組，所有 Calendar Event 必須綁定 Case ID。
@@ -22,6 +27,8 @@ MG-AIOS 採用 Daily Build。
 
 ### 今天改善什麼
 
+- 使用者不需要知道 AI 回答要存到哪裡；分類與保存是 MG-AIOS 的工作。
+- AI Brain 只保留長期有效知識，Timeline 只記錄發生過什麼，AI Insight 只保留會影響下一次成交判斷的洞察。
 - 首頁 TOP5 不再顯示 29184 這類機器分數。
 - 首頁卡片改顯示標籤、成交率、下一步與一句理由。
 - 點擊首頁 TOP5 會進入 Case Detail，而不是進入零散模組。

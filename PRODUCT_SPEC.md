@@ -2,24 +2,28 @@
 
 ## 產品定位
 
-MG-AIOS 不是 CRM。
+MG-AIOS 不是 CRM，也不是另一個 AI。
 
-MG-AIOS 是 AI 房仲營運系統。
+MG-AIOS 是 AI 工作中心。
 
-它的目的不是管理客戶，而是每天幫房仲找到最有價值的下一步行動。
+ChatGPT、Claude、Gemini 負責思考。
+
+MG-AIOS 負責整理、保存、分類、提醒。
+
+蔡名廣負責建立關係、判斷機會、促成成交。
 
 AI 負責：
-- 找資訊
-- 整理資訊
-- 排序資訊
-- 提醒資訊
-- 產生內容
+- 分析
+- 推理
+- 文案
+- LINE 回覆
+- 電話話術
+- 成交分析
+- 下一步策略
+- 市場分析
+- 自由詢問
 
-人負責：
-- 建立關係
-- 判斷機會
-- 談判
-- 成交
+MG-AIOS 不負責思考，也不重複開發 ChatGPT 已經做得好的能力。
 
 ## 開發原則
 
@@ -206,6 +210,35 @@ Prompt Template 包含：
 - Facebook
 - 短影音腳本
 - 自由詢問
+
+## AI 回寫閉環
+
+使用者只做三件事：
+
+1. 點 AI 助理。
+2. 與 ChatGPT / Claude / Gemini 對話。
+3. 將 AI 回答貼回 MG-AIOS。
+
+MG-AIOS 收到 AI 回答後自動完成：
+
+- 萃取 AI Summary
+- 萃取 AI Insight
+- 更新 AI Brain
+- 新增 Timeline / Event
+- 更新案件建議
+- 更新今日工作排序
+
+使用者不需要判斷資料要存到哪裡。
+
+### AI Memory 原則
+
+AI Summary：只保留本次 AI 重點。
+
+AI Insight：只保留會影響下一次成交判斷的洞察。
+
+AI Brain：只保存長期有效知識，可以被更新覆蓋。
+
+Timeline：只記錄發生過什麼，不放分析。
 
 ## 文件中心
 

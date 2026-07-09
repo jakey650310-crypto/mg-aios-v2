@@ -1731,50 +1731,69 @@ function CaseDetailPage({
     window.open(urls[tool], "_blank", "noopener,noreferrer");
   }
 
-  function saveAiResponse(target: "summary" | "insight" | "brain" | "event") {
+  function parseAiResponse() {
     const content = aiResponse.trim();
     if (!content) {
       setAiMessage("請先貼上 AI 回答。");
       return;
     }
-    if (target === "summary") updateCase({ aiSummary: content });
-    if (target === "insight") updateCase({ aiInsight: content });
-    if (target === "brain") updateCase({ aiBrain: content });
-    if (target === "event") {
-      const eventId = crypto.randomUUID();
-      const event: CalendarEventModel = {
-        id: eventId,
-        title: "貼回 AI 回答",
-        propertyId: liveCase.propertyId,
-        caseId: liveCase.id,
-        contactIds: Array.from(new Set(journeys.flatMap((journey) => journey.contactIds))),
-        eventType: "AI分析",
-        eventDate: new Date().toLocaleDateString("sv-SE"),
-        startDate: new Date().toLocaleDateString("sv-SE"),
-        endDate: new Date().toLocaleDateString("sv-SE"),
-        startTime: "",
-        endTime: "",
-        location: "",
-        description: content.slice(0, 160),
-        status: "Done",
-        priority: "中",
-        source: "AI",
-        createdBy: "蔡名廣",
-        completedAt: nowIso(),
-        googleCalendarEventId: "",
-        syncStatus: "NotSynced",
-        createdAt: nowIso(),
-        updatedAt: nowIso(),
-      };
-      onSetState((current) => ({
-        ...current,
-        calendarEvents: [event, ...current.calendarEvents],
-        cases: current.cases.map((item) =>
-          item.id === liveCase.id ? { ...item, eventIds: [eventId, ...item.eventIds], updatedAt: nowIso() } : item,
-        ),
-      }));
-    }
-    setAiMessage("已回寫到案件。");
+    const parsed = parseAiResponseContent(content);
+    const eventId = crypto.randomUUID();
+    const now = nowIso();
+    const today = new Date().toLocaleDateString("sv-SE");
+    const event: CalendarEventModel = {
+      id: eventId,
+      title: "解析 AI 回答",
+      propertyId: liveCase.propertyId,
+      caseId: liveCase.id,
+      contactIds: Array.from(new Set(journeys.flatMap((journey) => journey.contactIds))),
+      eventType: "AI分析",
+      eventDate: today,
+      startDate: today,
+      endDate: today,
+      startTime: "",
+      endTime: "",
+      location: "",
+      description: parsed.timeline,
+      status: "Done",
+      priority: "中",
+      source: "AI",
+      createdBy: "蔡名廣",
+      completedAt: now,
+      googleCalendarEventId: "",
+      syncStatus: "NotSynced",
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    onSetState((current) => ({
+      ...current,
+      cases: current.cases.map((item) =>
+        item.id === liveCase.id
+          ? {
+              ...item,
+              aiSummary: parsed.summary,
+              aiInsight: parsed.insight || item.aiInsight,
+              aiBrain: parsed.brain || item.aiBrain,
+              eventIds: [eventId, ...item.eventIds],
+              updatedAt: now,
+            }
+          : item,
+      ),
+      journeys: current.journeys.map((journey) =>
+        liveCase.journeyIds.includes(journey.id)
+          ? {
+              ...journey,
+              nextStep: parsed.nextStep || journey.nextStep,
+              aiSuggestion: parsed.summary,
+              probability: parsed.probability || journey.probability,
+              updatedAt: now,
+            }
+          : journey,
+      ),
+      calendarEvents: [event, ...current.calendarEvents],
+    }));
+    setAiMessage("已解析 AI 回答，並自動更新 Summary、Insight、Brain、案件紀錄與今日排序。");
   }
 
   return (
@@ -1945,13 +1964,10 @@ function CaseDetailPage({
               <button type="button" onClick={() => openAiTool("claude")}>開啟 Claude</button>
               <button type="button" onClick={() => openAiTool("gemini")}>開啟 Gemini</button>
             </div>
-            <EditorTextarea label="貼上 AI 回答" value={aiResponse} onChange={setAiResponse} />
-            <div className="marketing-actions">
-              <button type="button" onClick={() => saveAiResponse("summary")}>存成 AI Summary</button>
-              <button type="button" onClick={() => saveAiResponse("insight")}>存成 AI Insight</button>
-              <button type="button" onClick={() => saveAiResponse("brain")}>更新 AI Brain</button>
-              <button type="button" onClick={() => saveAiResponse("event")}>寫入案件紀錄</button>
-            </div>
+            <EditorTextarea label="AI 回答｜貼上 ChatGPT / Claude / Gemini 回答" value={aiResponse} onChange={setAiResponse} />
+            <button className="sheet-submit" type="button" onClick={parseAiResponse}>
+              解析 AI 回答
+            </button>
           </section>
         </div>
       )}
@@ -1966,6 +1982,40 @@ function EmptyInline({ text }: { text: string }) {
       <span>{text}</span>
     </div>
   );
+}
+
+function parseAiResponseContent(content: string) {
+  const lines = content
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^[-*•\d.、\s]+/, "").trim())
+    .filter(Boolean);
+  const compact = lines.length ? lines : [content.trim()];
+  const probability = extractProbability(content);
+  const nextStep = findFirstLine(compact, /(下一步|建議|安排|聯絡|回覆|拜訪|看屋|追蹤|確認|傳 LINE|打電話)/);
+  const insightLines = compact.filter((line) => /(真正|抗拒|決策者|風險|原因|信任|價格|資金|太太|先生|家人|阻礙|不是.*而是|不要先)/.test(line));
+  const brainLines = compact.filter((line) => /(長期|下次|未來|通常|重視|習慣|偏好|不適合|適合|需要.*次|決策模式|建立信任)/.test(line));
+  const summaryLines = compact
+    .filter((line) => !/(以下|當然|如果你要|我可以)/.test(line))
+    .slice(0, 4);
+
+  return {
+    summary: summaryLines.join("\n") || content.slice(0, 240),
+    insight: insightLines.slice(0, 4).join("\n"),
+    brain: brainLines.slice(0, 4).join("\n"),
+    timeline: `使用 AI 回答更新案件：${(nextStep || summaryLines[0] || content).slice(0, 120)}`,
+    nextStep: nextStep || "",
+    probability,
+  };
+}
+
+function extractProbability(content: string) {
+  const match = content.match(/(?:成交率|成交機率|機率|成功率)[^\d]*(\d{1,2})\s*%/);
+  if (!match) return 0;
+  return Math.max(1, Math.min(99, Number(match[1]) || 0));
+}
+
+function findFirstLine(lines: string[], pattern: RegExp) {
+  return lines.find((line) => pattern.test(line)) || "";
 }
 
 function caseTypeText(type: CaseModel["type"]) {
