@@ -9,6 +9,12 @@ MG-AIOS 採用 Daily Build。
 
 ### 今天新增什麼
 
+- V3.1 UX P0：AI 店長九宮格模式可正常切換，並顯示目前模式與目的。
+- 「準備 AI 任務」新增 Loading 狀態：整理案件資料、建立任務、完成複製。
+- 新增 Toast：「✓ Prompt 已複製」與「✓ AI 回答已解析」。
+- ChatGPT / Claude / Gemini 按鈕會先確認任務已準備並複製，再開啟對應 AI。
+- AI 店長新增固定流程提示：選工作 → 準備 AI 任務 → ChatGPT → 貼回 AI 回答 → 解析 AI 回答 → 完成。
+- AI 回答新增回寫碼，同一份 AI 回答不會重複新增 Timeline。
 - V3 產品定位調整：MG-AIOS 是 AI 工作中心，不是另一個 AI。
 - AI 助理回寫流程改為一顆「解析 AI 回答」。
 - 移除「存成 AI Summary」「存成 AI Insight」「更新 AI Brain」「寫入案件紀錄」四個手動分類按鈕。

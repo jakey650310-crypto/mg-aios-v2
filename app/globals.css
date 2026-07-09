@@ -229,6 +229,12 @@ button { cursor: pointer; }
 .input-type-grid button { display: grid; min-height: 78px; place-content: center; justify-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 8px; background: #f7f9f7; color: var(--muted); font-weight: 900; }
 .input-type-grid button.selected { border-color: #b9d4c1; background: var(--brand-soft); color: var(--brand-strong); }
 .input-type-grid svg { width: 22px; }
+.ai-mode-status { display: grid; gap: 5px; padding: 12px; border: 1px solid #b9d4c1; border-radius: 8px; background: var(--brand-soft); color: var(--brand-strong); }
+.ai-mode-status strong { font-size: 15px; }
+.ai-mode-status span { color: var(--ink); font-size: 13px; line-height: 1.55; }
+.ai-flow-steps { display: grid; gap: 5px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: #f8faf8; color: var(--muted); font-size: 12px; font-weight: 900; }
+.ai-flow-steps b { color: var(--brand-strong); line-height: 1; }
+.floating-toast { position: sticky; top: 8px; z-index: 5; padding: 11px 12px; border-radius: 8px; background: #0f5132; color: white; font-weight: 900; text-align: center; box-shadow: 0 8px 18px rgba(15, 81, 50, .22); }
 .bottom-sheet input[type="file"] { width: 100%; min-height: 54px; padding: 13px; border: 1px solid #bcc8bf; border-radius: 7px; background: white; font-size: 15px; }
 .form-error { padding: 10px 12px; border-radius: 7px; background: #fff5f5; color: #b4232c !important; font-weight: 900; }
 .ai-preview { display: grid; gap: 12px; }

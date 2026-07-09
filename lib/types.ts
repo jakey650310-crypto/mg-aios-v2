@@ -283,6 +283,7 @@ export interface CalendarEventModel {
   source?: EventSource;
   createdBy?: string;
   completedAt?: string;
+  aiResponseHash?: string;
   googleCalendarEventId: string;
   syncStatus: CalendarSyncStatus;
   createdAt: string;

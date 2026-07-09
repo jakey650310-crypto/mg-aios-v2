@@ -1457,6 +1457,18 @@ const promptTemplateTypes: PromptTemplateType[] = [
   "自由詢問",
 ];
 
+const promptModeDescriptions = {
+  "快速摘要": "整理案件重點，讓你快速知道目前卡在哪裡。",
+  "LINE 回覆": "協助產生自然、不推銷的 LINE 回覆。",
+  "電話話術": "協助準備開場、提問與收尾，不讓電話失焦。",
+  "成交分析": "分析成交機率、阻礙與今天最值得推進的地方。",
+  "下一步建議": "直接告訴你今天下一步該做什麼。",
+  "591 文案": "依案件資料準備 591 刊登任務。",
+  "FB 文案": "依案件資料準備 Facebook 貼文任務。",
+  "短影音腳本": "依案件資料準備短影音腳本任務。",
+  "自由詢問": "你可以直接問 AI 店長任何與案件有關的問題。",
+} satisfies Record<PromptTemplateType, string>;
+
 function CaseDetailPage({
   caseItem,
   state,
@@ -1486,6 +1498,9 @@ function CaseDetailPage({
   const [generatedPrompt, setGeneratedPrompt] = useState("");
   const [aiResponse, setAiResponse] = useState("");
   const [aiMessage, setAiMessage] = useState("");
+  const [aiToast, setAiToast] = useState("");
+  const [aiTaskLoading, setAiTaskLoading] = useState(false);
+  const [aiParseLoading, setAiParseLoading] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1709,25 +1724,41 @@ function CaseDetailPage({
     }
   }
 
+  useEffect(() => {
+    if (!aiToast) return;
+    const timer = window.setTimeout(() => setAiToast(""), 2600);
+    return () => window.clearTimeout(timer);
+  }, [aiToast]);
+
   async function generatePrompt(type = promptType) {
+    setAiTaskLoading(true);
+    setAiMessage("整理案件資料中...");
     const context = buildCaseContext(state, liveCase);
     const prompt = buildPromptFromTemplate(context, type, customQuestion);
-    setGeneratedPrompt(prompt);
-    setAiMessage("AI 店長已準備好任務。");
+    await new Promise((resolve) => window.setTimeout(resolve, 350));
     try {
+      setGeneratedPrompt(prompt);
+      setAiMessage("建立 AI 任務中...");
       await navigator.clipboard.writeText(prompt);
-      setAiMessage("已複製任務內容。請開啟 ChatGPT / Claude / Gemini 後直接貼上。");
+      setAiMessage("完成。請開啟 ChatGPT / Claude / Gemini 後直接貼上。");
+      setAiToast("✓ Prompt 已複製");
+      return prompt;
     } catch {
       setAiMessage("任務已準備好，但瀏覽器未允許自動複製。");
+      return prompt;
+    } finally {
+      setAiTaskLoading(false);
     }
   }
 
-  function openAiTool(tool: "chatgpt" | "claude" | "gemini") {
+  async function openAiTool(tool: "chatgpt" | "claude" | "gemini") {
     const urls = {
       chatgpt: "https://chatgpt.com/",
       claude: "https://claude.ai/new",
       gemini: "https://gemini.google.com/app",
     };
+    if (!generatedPrompt) await generatePrompt();
+    setAiToast("✓ Prompt 已複製，請直接貼上即可");
     window.open(urls[tool], "_blank", "noopener,noreferrer");
   }
 
@@ -1737,7 +1768,18 @@ function CaseDetailPage({
       setAiMessage("請先貼上 AI 回答。");
       return;
     }
+    setAiParseLoading(true);
     const parsed = parseAiResponseContent(content);
+    const responseHash = hashText(content);
+    const duplicated = state.calendarEvents.some((event) =>
+      event.caseId === liveCase.id && event.eventType === "AI分析" && event.aiResponseHash === responseHash,
+    );
+    if (duplicated) {
+      setAiParseLoading(false);
+      setAiMessage("這份 AI 回答已解析過，不會重複新增案件紀錄。");
+      setAiToast("已解析過，未重複新增");
+      return;
+    }
     const eventId = crypto.randomUUID();
     const now = nowIso();
     const today = new Date().toLocaleDateString("sv-SE");
@@ -1760,6 +1802,7 @@ function CaseDetailPage({
       source: "AI",
       createdBy: "蔡名廣",
       completedAt: now,
+      aiResponseHash: responseHash,
       googleCalendarEventId: "",
       syncStatus: "NotSynced",
       createdAt: now,
@@ -1793,7 +1836,9 @@ function CaseDetailPage({
       ),
       calendarEvents: [event, ...current.calendarEvents],
     }));
-    setAiMessage("已解析 AI 回答，並自動更新 Summary、Insight、Brain、案件紀錄與今日排序。");
+    setAiParseLoading(false);
+    setAiMessage("完成。系統已自動更新今天建議、最近學到、長期判斷、案件紀錄與今日排序。");
+    setAiToast("✓ AI 回答已解析");
   }
 
   return (
@@ -1935,6 +1980,7 @@ function CaseDetailPage({
         <div className="sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setShowAiAssistant(false)}>
           <section className="bottom-sheet inbox-compose">
             <div className="sheet-handle" />
+            {aiToast && <div className="floating-toast">{aiToast}</div>}
             <header>
               <div>
                 <p>AI 店長</p>
@@ -1951,22 +1997,39 @@ function CaseDetailPage({
                 </button>
               ))}
             </div>
+            <section className="ai-mode-status">
+              <strong>目前模式：{promptType}</strong>
+              <span>目的：{promptModeDescriptions[promptType]}</span>
+            </section>
+            <section className="ai-flow-steps">
+              <span>STEP1 選工作</span>
+              <b>↓</b>
+              <span>STEP2 準備 AI 任務</span>
+              <b>↓</b>
+              <span>STEP3 ChatGPT</span>
+              <b>↓</b>
+              <span>STEP4 貼回 AI 回答</span>
+              <b>↓</b>
+              <span>STEP5 解析 AI 回答</span>
+              <b>↓</b>
+              <span>完成</span>
+            </section>
             {promptType === "自由詢問" && (
               <EditorTextarea label="想問 AI 什麼" value={customQuestion} onChange={setCustomQuestion} />
             )}
-            <button className="sheet-submit" type="button" onClick={() => void generatePrompt()}>
-              準備 AI 任務
+            <button className="sheet-submit" type="button" onClick={() => void generatePrompt()} disabled={aiTaskLoading}>
+              {aiTaskLoading ? "整理案件資料中..." : "準備 AI 任務"}
             </button>
             {aiMessage && <p>{aiMessage}</p>}
             {generatedPrompt && <p>任務內容已在背景準備好，不需要手動整理案件資料。</p>}
             <div className="marketing-actions">
-              <button type="button" onClick={() => openAiTool("chatgpt")}>開啟 ChatGPT 生成</button>
-              <button type="button" onClick={() => openAiTool("claude")}>開啟 Claude 生成</button>
-              <button type="button" onClick={() => openAiTool("gemini")}>開啟 Gemini 生成</button>
+              <button type="button" onClick={() => void openAiTool("chatgpt")} disabled={aiTaskLoading}>開啟 ChatGPT</button>
+              <button type="button" onClick={() => void openAiTool("claude")} disabled={aiTaskLoading}>開啟 Claude</button>
+              <button type="button" onClick={() => void openAiTool("gemini")} disabled={aiTaskLoading}>開啟 Gemini</button>
             </div>
-            <EditorTextarea label="AI 回答｜貼上 ChatGPT / Claude / Gemini 回答" value={aiResponse} onChange={setAiResponse} />
-            <button className="sheet-submit" type="button" onClick={parseAiResponse}>
-              解析 AI 回答
+            <EditorTextarea label="請貼上 AI 回答" value={aiResponse} onChange={setAiResponse} />
+            <button className="sheet-submit" type="button" onClick={parseAiResponse} disabled={aiParseLoading}>
+              {aiParseLoading ? "解析中..." : "解析 AI 回答"}
             </button>
           </section>
         </div>
@@ -2016,6 +2079,14 @@ function extractProbability(content: string) {
 
 function findFirstLine(lines: string[], pattern: RegExp) {
   return lines.find((line) => pattern.test(line)) || "";
+}
+
+function hashText(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash.toString(36);
 }
 
 function caseTypeText(type: CaseModel["type"]) {
