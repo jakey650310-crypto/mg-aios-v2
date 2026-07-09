@@ -78,28 +78,57 @@ AI 必須依照以下因素排序：
 - 今日風險
 - 今日待辦
 
-## 六大核心模組
+## 核心資料原則
+
+### Case 是唯一核心
+
+所有資料都必須掛回 Case。
+
+Case 包含：
+- Contact
+- Property
+- Journey
+- Timeline / Event
+- Google Calendar
+- Tasks
+- Notes
+- Files
+- AI Summary
+- AI Insight
+- AI Brain
+
+AI Today、Calendar、Prompt、Journey 都不是獨立資料來源，而是 Case 的不同 View。
+
+### Google Calendar 原則
+
+Google Calendar 不是獨立模組。
+
+Calendar Event 必須與 Case ID 綁定，並在 Case Detail 中管理。
+
+首頁只顯示今天有哪些案件需要處理；點進案件後才看到 Journey、Timeline、Google Calendar、待辦、備註、文件與 AI 建議。
+
+## 六大核心能力
 
 ### 1. 首頁
 
 AI 今日工作中心。
 
-### 2. 物件中心
+### 2. 案件中心
 
-一間房子就是一個中心。
+一個 Case 是一段成交或服務流程。
 
-所有資料都綁在 Property。
+所有資料都掛回 Case。
 
 包含：
-- 屋主
-- 買方
-- 租客
-- 案件旅程
-- 修繕
+- 物件
+- 聯絡人
+- 旅程
+- 事件
+- 待辦
 - 文件
-- 成交
-- 租賃
-- AI 分析
+- AI Summary
+- AI Insight
+- AI Brain
 
 ### 3. 聯絡人
 
@@ -156,26 +185,27 @@ AI 可以：
 - 財務中心
 - 行銷中心
 
-## 行銷中心
+## Prompt Launcher
 
-所有行銷素材由同一份 Property 資料生成。
+不要重複開發 ChatGPT 已經做得好的 AI 生成能力。
 
-一鍵產生：
+MG-AIOS 負責：
+- 整理 Case Context
+- 產生 Prompt
+- 複製 Prompt
+- 開啟 ChatGPT / Claude / Gemini
+- 儲存 AI 回答結果
+
+Prompt Template 包含：
+- 快速摘要
+- LINE 回覆
+- 電話話術
+- 成交分析
+- 下一步建議
 - 591
 - Facebook
-- LINE
-- Instagram
-- Threads
-- TikTok
-- YouTube Shorts
-- 售屋簡報
-- AI 修圖
-- AI 格局圖
-- AI 還原圖
-
-未來再研究一鍵發布。
-
-目前先做到一鍵生成。
+- 短影音腳本
+- 自由詢問
 
 ## 文件中心
 
@@ -207,9 +237,9 @@ AI 可以：
 
 1. 使用者介面全部繁體中文。
 2. 程式碼、API、資料庫全部英文。
-3. 所有資料以 Property 為核心。
+3. 所有工作流程以 Case 為核心。
 4. 一位 Contact 永遠只有一份資料。
-5. AI 只負責整理、分析、提醒，不取代人的判斷。
+5. Calendar、Timeline、AI Today 都必須回到 Case / Event。
 6. 手機優先。
 7. 能一鍵完成，就不要多步驟。
 8. 能自動，就不要手動。

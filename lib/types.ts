@@ -85,7 +85,9 @@ export type PropertyStatus = "出售中" | "出租中" | "已成交" | "已出�
 export type ContactRole = "Owner" | "Buyer" | "Tenant" | "Referrer";
 export type OperatingJourneyType = "Buyer" | "Owner" | "Tenant" | "Repair";
 export type CaseType = "Sale" | "Rental" | "Repair" | "Warranty" | "Management";
+export type CaseRole = "買方" | "屋主" | "出租方" | "承租方" | "廠商" | "介紹人" | "共同持有人" | "其他";
 export type CaseStatus = "Active" | "Closing" | "Closed" | "Archived";
+export type CaseTaskStatus = "待處理" | "已完成";
 export type ClosingTaskStatus = "Pending" | "Done";
 export type CalendarEventType =
   | "看屋"
@@ -103,9 +105,21 @@ export type CalendarEventType =
   | "修繕"
   | "驗屋"
   | "保固"
+  | "AI分析"
   | "自訂";
 export type CalendarEventStatus = "Scheduled" | "Done" | "Cancelled";
 export type CalendarSyncStatus = "NotSynced" | "Synced" | "SyncFailed";
+export type EventSource = "Manual" | "GoogleCalendar" | "AI" | "System";
+export type PromptTemplateType =
+  | "快速摘要"
+  | "LINE 回覆"
+  | "電話話術"
+  | "成交分析"
+  | "下一步建議"
+  | "591 文案"
+  | "FB 文案"
+  | "短影音腳本"
+  | "自由詢問";
 export type MarketingPlatform =
   | "591"
   | "Facebook"
@@ -233,11 +247,17 @@ export interface CaseModel {
   id: string;
   propertyId: string;
   type: CaseType;
+  caseRole: CaseRole;
   title: string;
   status: CaseStatus;
   timeline: string[];
   journeyIds: string[];
   eventIds: string[];
+  taskIds: string[];
+  notes: string;
+  aiSummary: string;
+  aiInsight: string;
+  aiBrain: string;
   fileIds: string[];
   financialIds: string[];
   createdAt: string;
@@ -251,6 +271,7 @@ export interface CalendarEventModel {
   caseId: string;
   contactIds: string[];
   eventType: CalendarEventType;
+  eventDate?: string;
   startDate: string;
   endDate: string;
   startTime: string;
@@ -258,8 +279,22 @@ export interface CalendarEventModel {
   location: string;
   description: string;
   status: CalendarEventStatus;
+  priority?: "低" | "中" | "高";
+  source?: EventSource;
+  createdBy?: string;
+  completedAt?: string;
   googleCalendarEventId: string;
   syncStatus: CalendarSyncStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CaseTaskModel {
+  id: string;
+  caseId: string;
+  title: string;
+  status: CaseTaskStatus;
+  dueDate: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -300,6 +335,7 @@ export interface OperatingSystemState {
   marketingContents: MarketingContentModel[];
   cases: CaseModel[];
   calendarEvents: CalendarEventModel[];
+  caseTasks: CaseTaskModel[];
   closingRecords: ClosingRecordModel[];
   aiCenter: AiAssistantModel[];
 }
@@ -311,6 +347,10 @@ export interface AiPriorityItem {
   nextStep: string;
   score: number;
   propertyId: string;
+  caseId?: string;
   contactIds: string[];
   type: "Journey" | "Repair" | "Financial" | "AI" | "Calendar" | "Closing" | "Marketing";
+  displayTag?: string;
+  reason?: string;
+  probability?: number;
 }

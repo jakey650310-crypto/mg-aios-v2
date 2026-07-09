@@ -28,6 +28,7 @@ import type {
   AiPriorityItem,
   ContactModel,
   CaseModel,
+  CaseTaskModel,
   CalendarEventModel,
   CalendarEventType,
   MarketingContentModel,
@@ -35,12 +36,14 @@ import type {
   OperatingJourneyModel,
   OperatingJourneyType,
   OperatingSystemState,
+  PromptTemplateType,
   PropertyModel,
   RepairModel,
 } from "@/lib/types";
+import { buildCaseContext, buildPromptFromTemplate } from "@/lib/context-builder";
 import { useOperatingSystem } from "@/lib/use-operating-system";
 
-type OperatingModuleKey = "dashboard" | "property" | "contact" | "journey" | "repair" | "calendar" | "marketing" | "closing" | "documents" | "ai";
+type OperatingModuleKey = "dashboard" | "property" | "contact" | "journey" | "repair" | "marketing" | "closing" | "documents" | "ai";
 type InputMode = "text" | "line" | "photo";
 
 const moduleLabels: Record<OperatingModuleKey, { title: string; subtitle: string }> = {
@@ -49,7 +52,6 @@ const moduleLabels: Record<OperatingModuleKey, { title: string; subtitle: string
   contact: { title: "聯絡人", subtitle: "一位人只有一份資料" },
   journey: { title: "案件旅程", subtitle: "下一步、原因、風險" },
   repair: { title: "修繕管理", subtitle: "報修、估價、施工、保固" },
-  calendar: { title: "日曆中心", subtitle: "所有時間都從這裡管理" },
   marketing: { title: "行銷中心", subtitle: "自動整理 Prompt，交給 ChatGPT 完成" },
   closing: { title: "成交中心", subtitle: "成交紀錄、公司請款、佣金" },
   documents: { title: "文件中心", subtitle: "文件綁定物件與案件" },
@@ -78,6 +80,18 @@ function findProperty(state: OperatingSystemState, id: string) {
   return state.properties.find((property) => property.id === id);
 }
 
+function findCase(state: OperatingSystemState, id: string) {
+  return state.cases.find((caseItem) => caseItem.id === id);
+}
+
+function findCaseByJourney(state: OperatingSystemState, journeyId: string) {
+  return state.cases.find((caseItem) => caseItem.journeyIds.includes(journeyId));
+}
+
+function findCaseByProperty(state: OperatingSystemState, propertyId: string) {
+  return state.cases.find((caseItem) => caseItem.propertyId === propertyId);
+}
+
 function mapDraftType(draft: AiJourneyDraft): OperatingJourneyType {
   if (draft.journey.includes("屋主")) return "Owner";
   if (draft.journey.includes("出租")) return "Tenant";
@@ -89,25 +103,42 @@ export function CommandCenter() {
   const operatingSystem = useOperatingSystem();
   const [activeModule, setActiveModule] = useState<OperatingModuleKey | null>(null);
   const [activeJourney, setActiveJourney] = useState<OperatingJourneyModel | null>(null);
+  const [activeCase, setActiveCase] = useState<CaseModel | null>(null);
   const [showInbox, setShowInbox] = useState(false);
 
   const topFive = operatingSystem.todayTopFive;
   const state = operatingSystem.state;
 
+  useEffect(() => {
+    if (!operatingSystem.ready) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("googleCalendar") === "connected") {
+      const pendingCaseId = window.localStorage.getItem("mgAiosPendingGoogleCalendarCaseId");
+      const caseItem = pendingCaseId ? findCase(state, pendingCaseId) : null;
+      if (caseItem) setActiveCase(caseItem);
+    }
+  }, [operatingSystem.ready, state]);
+
+  function openCase(caseId?: string) {
+    const caseItem = caseId ? findCase(state, caseId) : undefined;
+    if (caseItem) {
+      setActiveCase(caseItem);
+      return true;
+    }
+    return false;
+  }
+
   function openPriorityItem(item: AiPriorityItem) {
+    if (openCase(item.caseId)) return;
     if (item.type === "Journey") {
       const journey = state.journeys.find((entry) => entry.id === item.id);
       if (journey) {
-        setActiveJourney(journey);
+        if (!openCase(findCaseByJourney(state, journey.id)?.id)) setActiveJourney(journey);
         return;
       }
     }
     if (item.type === "Repair") {
       setActiveModule("repair");
-      return;
-    }
-    if (item.type === "Calendar") {
-      setActiveModule("calendar");
       return;
     }
     if (item.type === "Closing") {
@@ -144,6 +175,11 @@ export function CommandCenter() {
         ...property,
         journeyIds: property.journeyIds.filter((journeyId) => journeyId !== id),
       })),
+      cases: current.cases.map((caseItem) => ({
+        ...caseItem,
+        journeyIds: caseItem.journeyIds.filter((journeyId) => journeyId !== id),
+        updatedAt: nowIso(),
+      })),
     }));
     setActiveJourney(null);
   }
@@ -175,6 +211,9 @@ export function CommandCenter() {
     operatingSystem.setState((current) => ({
       ...current,
       journeys: [journey, ...current.journeys],
+      cases: current.cases.map((caseItem, index) =>
+        index === 0 ? { ...caseItem, journeyIds: [journey.id, ...caseItem.journeyIds], updatedAt: nowIso() } : caseItem,
+      ),
       properties: current.properties.map((property, index) =>
         index === 0 ? { ...property, journeyIds: [journey.id, ...property.journeyIds] } : property,
       ),
@@ -226,21 +265,21 @@ export function CommandCenter() {
               <b>{index + 1}</b>
               <div>
                 <strong>{item.title}</strong>
-                <span>{item.subtitle}</span>
+                <span>{item.displayTag || item.subtitle}{item.probability ? `｜成交率 ${item.probability}%` : ""}</span>
                 <small>{item.nextStep}</small>
+                <small>{item.reason || item.subtitle}</small>
               </div>
-              <em>{item.score}</em>
+              <em>查看</em>
             </button>
           ))}
         </div>
       </section>
 
       <section className="decision-section">
-        <SectionTitle icon={Sparkles} title="流程導航" count={6} hint="物件 → 案件 → 日曆 → 行銷 → 成交 → 文件" />
+        <SectionTitle icon={Sparkles} title="流程導航" count={5} hint="物件 → 案件 → 行銷 → 成交 → 文件" />
         <div className="workflow-nav">
           <button onClick={() => setActiveModule("property")}><Home />物件</button>
           <button onClick={() => setActiveModule("journey")}><Clock3 />案件</button>
-          <button onClick={() => setActiveModule("calendar")}><CalendarDays />日曆</button>
           <button onClick={() => setActiveModule("marketing")}><Megaphone />Prompt</button>
           <button onClick={() => setActiveModule("closing")}><Check />成交</button>
           <button onClick={() => setActiveModule("documents")}><ClipboardList />文件</button>
@@ -277,7 +316,17 @@ export function CommandCenter() {
           onSetState={operatingSystem.setState}
           onClose={() => setActiveModule(null)}
           onOpenJourney={setActiveJourney}
+          onOpenCase={(caseItem) => setActiveCase(caseItem)}
           onOpenModule={setActiveModule}
+        />
+      )}
+      {activeCase && (
+        <CaseDetailPage
+          caseItem={activeCase}
+          state={state}
+          onSetState={operatingSystem.setState}
+          onClose={() => setActiveCase(null)}
+          onOpenJourney={setActiveJourney}
         />
       )}
       {activeJourney && (
@@ -354,6 +403,7 @@ function OperatingModulePage({
   onSetState,
   onClose,
   onOpenJourney,
+  onOpenCase,
   onOpenModule,
 }: {
   moduleKey: OperatingModuleKey;
@@ -362,6 +412,7 @@ function OperatingModulePage({
   onSetState: (updater: (current: OperatingSystemState) => OperatingSystemState) => void;
   onClose: () => void;
   onOpenJourney: (journey: OperatingJourneyModel) => void;
+  onOpenCase: (caseItem: CaseModel) => void;
   onOpenModule: (moduleKey: OperatingModuleKey) => void;
 }) {
   const label = moduleLabels[moduleKey];
@@ -385,6 +436,11 @@ function OperatingModulePage({
                 className="data-card tappable-card"
                 key={`${item.type}-${item.id}`}
                 onClick={() => {
+                  const caseItem = item.caseId ? findCase(state, item.caseId) : undefined;
+                  if (caseItem) {
+                    onOpenCase(caseItem);
+                    return;
+                  }
                   if (item.type === "Journey") {
                     const journey = state.journeys.find((entry) => entry.id === item.id);
                     if (journey) onOpenJourney(journey);
@@ -395,19 +451,18 @@ function OperatingModulePage({
               >
                 <div>
                   <strong>{index + 1}. {item.title}</strong>
-                  <span>{item.subtitle}</span>
+                  <span>{item.displayTag || item.subtitle}{item.probability ? `｜成交率 ${item.probability}%` : ""}</span>
                   <small>{item.nextStep}</small>
                 </div>
-                <em>分數 {item.score}</em>
+                <em>查看</em>
               </button>
             ))}
           </div>
         )}
-        {moduleKey === "property" && <PropertyList state={state} onSetState={onSetState} onOpenModule={onOpenModule} />}
+        {moduleKey === "property" && <PropertyList state={state} onSetState={onSetState} onOpenModule={onOpenModule} onOpenCase={onOpenCase} />}
         {moduleKey === "contact" && <ContactList contacts={state.contacts} journeys={state.journeys} properties={state.properties} />}
         {moduleKey === "journey" && <JourneyList journeys={state.journeys} state={state} onOpenJourney={onOpenJourney} />}
         {moduleKey === "repair" && <RepairList repairs={state.repairs} properties={state.properties} />}
-        {moduleKey === "calendar" && <CalendarCenter state={state} onSetState={onSetState} />}
         {moduleKey === "marketing" && <MarketingCenter state={state} onSetState={onSetState} />}
         {moduleKey === "closing" && <ClosingCenter state={state} onSetState={onSetState} onOpenModule={onOpenModule} />}
         {moduleKey === "documents" && <DocumentsCenter state={state} onSetState={onSetState} />}
@@ -421,10 +476,12 @@ function PropertyList({
   state,
   onSetState,
   onOpenModule,
+  onOpenCase,
 }: {
   state: OperatingSystemState;
   onSetState: (updater: (current: OperatingSystemState) => OperatingSystemState) => void;
   onOpenModule: (moduleKey: OperatingModuleKey) => void;
+  onOpenCase: (caseItem: CaseModel) => void;
 }) {
   function createProperty() {
     const id = crypto.randomUUID();
@@ -466,11 +523,17 @@ function PropertyList({
           id: caseId,
           propertyId: property.id,
           type: "Sale",
+          caseRole: "屋主",
           title: `${property.community}買賣案`,
           status: "Active",
           timeline: ["建立物件", "建立案件"],
           journeyIds: [journeyId],
           eventIds: [],
+          taskIds: [],
+          notes: "",
+          aiSummary: "新建立案件，請先補齊物件資料與下一步。",
+          aiInsight: "",
+          aiBrain: "",
           fileIds: [],
           financialIds: [],
           createdAt: nowIso(),
@@ -511,7 +574,26 @@ function PropertyList({
           : item,
       ),
     }));
-    onOpenModule("journey");
+    onOpenCase({
+      id: caseId,
+      propertyId: property.id,
+      type: "Sale",
+      caseRole: "屋主",
+      title: `${property.community}買賣案`,
+      status: "Active",
+      timeline: ["建立物件", "建立案件"],
+      journeyIds: [journeyId],
+      eventIds: [],
+      taskIds: [],
+      notes: "",
+      aiSummary: "新建立案件，請先補齊物件資料與下一步。",
+      aiInsight: "",
+      aiBrain: "",
+      fileIds: [],
+      financialIds: [],
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    });
   }
 
   return (
@@ -534,6 +616,9 @@ function PropertyList({
           <span>{property.aiAnalysis}</span>
           <div className="marketing-actions">
             <button type="button" onClick={() => createCase(property)}>建立案件</button>
+            {state.cases.filter((item) => item.propertyId === property.id).map((caseItem) => (
+              <button type="button" key={caseItem.id} onClick={() => onOpenCase(caseItem)}>開啟案件</button>
+            ))}
             <button type="button" onClick={() => onOpenModule("marketing")}>進入行銷</button>
           </div>
         </article>
@@ -638,6 +723,7 @@ const calendarEventTypes: CalendarEventType[] = [
   "修繕",
   "驗屋",
   "保固",
+  "AI分析",
   "自訂",
 ];
 
@@ -1166,11 +1252,17 @@ function ClosingCenter({
                 id: caseId,
                 propertyId: property.id,
                 type: "Sale",
+                caseRole: "屋主",
                 title: `${property.community}成交案`,
                 status: "Closing",
                 timeline: ["建立物件", "建立案件", "行銷", "成交", "公司請款"],
                 journeyIds: property.journeyIds,
                 eventIds: [],
+                taskIds: [],
+                notes: "成交中心自動建立。",
+                aiSummary: "已進入成交流程，需完成成交紀錄、公司請款、佣金、履保、過戶、點交與售後。",
+                aiInsight: "成交流程階段重點是避免漏件與時程延誤。",
+                aiBrain: "成交案需固定追蹤請款、履保、過戶、點交與售後，避免成交後服務斷層。",
                 fileIds: property.fileIds,
                 financialIds: property.financialIds,
                 createdAt: nowIso(),
@@ -1351,6 +1443,537 @@ function AiCenterList({ state }: { state: OperatingSystemState }) {
       ))}
     </div>
   );
+}
+
+const promptTemplateTypes: PromptTemplateType[] = [
+  "快速摘要",
+  "LINE 回覆",
+  "電話話術",
+  "成交分析",
+  "下一步建議",
+  "591 文案",
+  "FB 文案",
+  "短影音腳本",
+  "自由詢問",
+];
+
+function CaseDetailPage({
+  caseItem,
+  state,
+  onSetState,
+  onClose,
+  onOpenJourney,
+}: {
+  caseItem: CaseModel;
+  state: OperatingSystemState;
+  onSetState: (updater: (current: OperatingSystemState) => OperatingSystemState) => void;
+  onClose: () => void;
+  onOpenJourney: (journey: OperatingJourneyModel) => void;
+}) {
+  const liveCase = findCase(state, caseItem.id) || caseItem;
+  const property = findProperty(state, liveCase.propertyId);
+  const journeys = state.journeys.filter((journey) => liveCase.journeyIds.includes(journey.id));
+  const events = state.calendarEvents
+    .filter((event) => event.caseId === liveCase.id)
+    .sort((a, b) => `${a.startDate} ${a.startTime}`.localeCompare(`${b.startDate} ${b.startTime}`));
+  const tasks = state.caseTasks.filter((task) => liveCase.taskIds.includes(task.id));
+  const files = state.files.filter((file) => liveCase.fileIds.includes(file.id));
+  const [calendarError, setCalendarError] = useState("");
+  const [calendarBusyId, setCalendarBusyId] = useState<string | null>(null);
+  const [showAiAssistant, setShowAiAssistant] = useState(false);
+  const [promptType, setPromptType] = useState<PromptTemplateType>("快速摘要");
+  const [customQuestion, setCustomQuestion] = useState("");
+  const [generatedPrompt, setGeneratedPrompt] = useState("");
+  const [aiResponse, setAiResponse] = useState("");
+  const [aiMessage, setAiMessage] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const googleStatus = params.get("googleCalendar");
+    if (googleStatus === "connected") {
+      const pendingEventId = window.localStorage.getItem("mgAiosPendingGoogleCalendarEventId");
+      const pendingCaseId = window.localStorage.getItem("mgAiosPendingGoogleCalendarCaseId");
+      if (pendingEventId && pendingCaseId === liveCase.id) {
+        window.localStorage.removeItem("mgAiosPendingGoogleCalendarEventId");
+        window.localStorage.removeItem("mgAiosPendingGoogleCalendarCaseId");
+        void createGoogleEvent(pendingEventId);
+      }
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    if (googleStatus && googleStatus !== "connected") {
+      setCalendarError("Google 授權失敗，請重新按「加入 Google 行事曆」。");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  function updateCase(patch: Partial<CaseModel>) {
+    onSetState((current) => ({
+      ...current,
+      cases: current.cases.map((item) =>
+        item.id === liveCase.id ? { ...item, ...patch, updatedAt: nowIso() } : item,
+      ),
+    }));
+  }
+
+  function createTask() {
+    const id = crypto.randomUUID();
+    const task: CaseTaskModel = {
+      id,
+      caseId: liveCase.id,
+      title: "新的待辦事項",
+      status: "待處理",
+      dueDate: new Date().toLocaleDateString("sv-SE"),
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    onSetState((current) => ({
+      ...current,
+      caseTasks: [task, ...current.caseTasks],
+      cases: current.cases.map((item) =>
+        item.id === liveCase.id ? { ...item, taskIds: [id, ...item.taskIds], updatedAt: nowIso() } : item,
+      ),
+    }));
+  }
+
+  function updateTask(id: string, patch: Partial<CaseTaskModel>) {
+    onSetState((current) => ({
+      ...current,
+      caseTasks: current.caseTasks.map((task) =>
+        task.id === id ? { ...task, ...patch, updatedAt: nowIso() } : task,
+      ),
+    }));
+  }
+
+  function createEvent() {
+    const eventId = crypto.randomUUID();
+    const event: CalendarEventModel = {
+      id: eventId,
+      title: `${liveCase.title}追蹤`,
+      propertyId: liveCase.propertyId,
+      caseId: liveCase.id,
+      contactIds: Array.from(new Set(journeys.flatMap((journey) => journey.contactIds))),
+      eventType: "自訂",
+      eventDate: new Date().toLocaleDateString("sv-SE"),
+      startDate: new Date().toLocaleDateString("sv-SE"),
+      endDate: new Date().toLocaleDateString("sv-SE"),
+      startTime: "10:00",
+      endTime: "10:30",
+      location: property?.address || "",
+      description: "從案件詳情建立，請確認行程內容。",
+      status: "Scheduled",
+      priority: "中",
+      source: "Manual",
+      createdBy: "蔡名廣",
+      completedAt: "",
+      googleCalendarEventId: "",
+      syncStatus: "NotSynced",
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    onSetState((current) => ({
+      ...current,
+      calendarEvents: [event, ...current.calendarEvents],
+      cases: current.cases.map((item) =>
+        item.id === liveCase.id ? { ...item, eventIds: [eventId, ...item.eventIds], updatedAt: nowIso() } : item,
+      ),
+    }));
+  }
+
+  function updateEvent(id: string, patch: Partial<CalendarEventModel>) {
+    onSetState((current) => ({
+      ...current,
+      calendarEvents: current.calendarEvents.map((event) =>
+        event.id === id
+          ? {
+              ...event,
+              ...patch,
+              eventDate: patch.startDate || event.eventDate || event.startDate,
+              syncStatus: patch.syncStatus || (event.googleCalendarEventId ? "SyncFailed" : event.syncStatus),
+              updatedAt: nowIso(),
+            }
+          : event,
+      ),
+    }));
+  }
+
+  function buildCalendarPayload(event: CalendarEventModel) {
+    const contacts = state.contacts.filter((contact) => event.contactIds.includes(contact.id));
+    return {
+      event,
+      property: property
+        ? {
+            community: property.community,
+            address: property.address,
+            totalPrice: property.totalPrice,
+          }
+        : undefined,
+      caseTitle: liveCase.title,
+      contacts: contacts.map((contact) => ({
+        name: contact.name,
+        phone: contact.phone,
+        line: contact.line,
+        email: contact.email,
+      })),
+    };
+  }
+
+  async function requestCalendarApi(path: string, init: RequestInit) {
+    const response = await fetch(path, init);
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 401 && data.authUrl) {
+      return { needsAuth: true, authUrl: data.authUrl as string, error: data.error as string };
+    }
+    if (!response.ok) throw new Error(data.error || "Google Calendar API 發生錯誤。");
+    return data;
+  }
+
+  async function deleteEvent(id: string) {
+    const target = state.calendarEvents.find((event) => event.id === id);
+    setCalendarError("");
+    if (target?.googleCalendarEventId) {
+      setCalendarBusyId(id);
+      try {
+        await requestCalendarApi(`/api/google-calendar/events?googleEventId=${encodeURIComponent(target.googleCalendarEventId)}`, { method: "DELETE" });
+      } catch (error) {
+        setCalendarError(error instanceof Error ? error.message : "刪除 Google 行事曆失敗。");
+        setCalendarBusyId(null);
+        return;
+      }
+      setCalendarBusyId(null);
+    }
+    onSetState((current) => ({
+      ...current,
+      calendarEvents: current.calendarEvents.filter((event) => event.id !== id),
+      cases: current.cases.map((item) =>
+        item.id === liveCase.id
+          ? { ...item, eventIds: item.eventIds.filter((eventId) => eventId !== id), updatedAt: nowIso() }
+          : item,
+      ),
+    }));
+  }
+
+  async function createGoogleEvent(id: string) {
+    const event = state.calendarEvents.find((item) => item.id === id);
+    if (!event) return;
+    setCalendarError("");
+    setCalendarBusyId(id);
+    try {
+      const data = await requestCalendarApi("/api/google-calendar/events", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(buildCalendarPayload(event)),
+      });
+      if (data.needsAuth) {
+        window.localStorage.setItem("mgAiosPendingGoogleCalendarEventId", id);
+        window.localStorage.setItem("mgAiosPendingGoogleCalendarCaseId", liveCase.id);
+        window.location.href = data.authUrl;
+        return;
+      }
+      updateEvent(id, { ...data.event, syncStatus: "Synced" });
+    } catch (error) {
+      setCalendarError(error instanceof Error ? error.message : "建立 Google 行事曆失敗。");
+      updateEvent(id, { syncStatus: "SyncFailed" });
+    } finally {
+      setCalendarBusyId(null);
+    }
+  }
+
+  async function syncEvent(id: string) {
+    const event = state.calendarEvents.find((item) => item.id === id);
+    if (!event) return;
+    if (!event.googleCalendarEventId) {
+      await createGoogleEvent(id);
+      return;
+    }
+    setCalendarError("");
+    setCalendarBusyId(id);
+    try {
+      const updated = await requestCalendarApi("/api/google-calendar/events", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(buildCalendarPayload(event)),
+      });
+      if (updated.needsAuth) {
+        window.localStorage.setItem("mgAiosPendingGoogleCalendarEventId", id);
+        window.localStorage.setItem("mgAiosPendingGoogleCalendarCaseId", liveCase.id);
+        window.location.href = updated.authUrl;
+        return;
+      }
+      const latest = await requestCalendarApi(`/api/google-calendar/events?googleEventId=${encodeURIComponent(updated.event.googleCalendarEventId)}`, { method: "GET" });
+      updateEvent(id, { ...latest.event, syncStatus: "Synced" });
+    } catch (error) {
+      setCalendarError(error instanceof Error ? error.message : "雙向同步失敗。");
+      updateEvent(id, { syncStatus: "SyncFailed" });
+    } finally {
+      setCalendarBusyId(null);
+    }
+  }
+
+  async function generatePrompt(type = promptType) {
+    const context = buildCaseContext(state, liveCase);
+    const prompt = buildPromptFromTemplate(context, type, customQuestion);
+    setGeneratedPrompt(prompt);
+    setAiMessage("Prompt 已產生。");
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setAiMessage("Prompt 已複製，可貼到 ChatGPT / Claude / Gemini。");
+    } catch {
+      setAiMessage("Prompt 已產生，但瀏覽器未允許自動複製。");
+    }
+  }
+
+  function openAiTool(tool: "chatgpt" | "claude" | "gemini") {
+    const urls = {
+      chatgpt: "https://chatgpt.com/",
+      claude: "https://claude.ai/new",
+      gemini: "https://gemini.google.com/app",
+    };
+    window.open(urls[tool], "_blank", "noopener,noreferrer");
+  }
+
+  function saveAiResponse(target: "summary" | "insight" | "brain" | "event") {
+    const content = aiResponse.trim();
+    if (!content) {
+      setAiMessage("請先貼上 AI 回答。");
+      return;
+    }
+    if (target === "summary") updateCase({ aiSummary: content });
+    if (target === "insight") updateCase({ aiInsight: content });
+    if (target === "brain") updateCase({ aiBrain: content });
+    if (target === "event") {
+      const eventId = crypto.randomUUID();
+      const event: CalendarEventModel = {
+        id: eventId,
+        title: "貼回 AI 回答",
+        propertyId: liveCase.propertyId,
+        caseId: liveCase.id,
+        contactIds: Array.from(new Set(journeys.flatMap((journey) => journey.contactIds))),
+        eventType: "AI分析",
+        eventDate: new Date().toLocaleDateString("sv-SE"),
+        startDate: new Date().toLocaleDateString("sv-SE"),
+        endDate: new Date().toLocaleDateString("sv-SE"),
+        startTime: "",
+        endTime: "",
+        location: "",
+        description: content.slice(0, 160),
+        status: "Done",
+        priority: "中",
+        source: "AI",
+        createdBy: "蔡名廣",
+        completedAt: nowIso(),
+        googleCalendarEventId: "",
+        syncStatus: "NotSynced",
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
+      };
+      onSetState((current) => ({
+        ...current,
+        calendarEvents: [event, ...current.calendarEvents],
+        cases: current.cases.map((item) =>
+          item.id === liveCase.id ? { ...item, eventIds: [eventId, ...item.eventIds], updatedAt: nowIso() } : item,
+        ),
+      }));
+    }
+    setAiMessage("已回寫到案件。");
+  }
+
+  return (
+    <section className="fullscreen-editor case-detail-page">
+      <header className="editor-header">
+        <button className="icon-button" onClick={onClose} aria-label="返回">
+          <X />
+        </button>
+        <div>
+          <p>案件詳情</p>
+          <h1>{liveCase.title}</h1>
+        </div>
+      </header>
+
+      <div className="editor-body">
+        <section className="client-hero-card">
+          <div>
+            <h2>{liveCase.title}</h2>
+            <p>{caseTypeText(liveCase.type)}｜{liveCase.caseRole}｜{caseStatusText(liveCase.status)}</p>
+            <small>{property ? `${property.community}｜${property.address}` : "尚未關聯物件"}</small>
+          </div>
+          <button className="sheet-submit compact-submit" type="button" onClick={() => setShowAiAssistant(true)}>
+            <Sparkles />
+            AI 助理
+          </button>
+        </section>
+
+        <section className="crm-section">
+          <h3>Journey</h3>
+          <div className="data-list compact-list">
+            {journeys.map((journey) => (
+              <button className="data-card tappable-card" key={journey.id} onClick={() => onOpenJourney(journey)}>
+                <div>
+                  <strong>{journey.currentStage}</strong>
+                  <span>{journey.nextStep}</span>
+                  <small>成交機率 {journey.probability}%｜成交價值 {journey.dealValue}</small>
+                </div>
+                <em>查看</em>
+              </button>
+            ))}
+            {!journeys.length && <EmptyInline text="尚未建立 Journey" />}
+          </div>
+        </section>
+
+        <section className="crm-section">
+          <h3>案件紀錄</h3>
+          <div className="timeline-list">
+            {events.map((event) => (
+              <article className="history-card" key={event.id}>
+                <strong>{event.startDate} {event.startTime}</strong>
+                <span>{event.eventType}｜{event.title}</span>
+                <small>{event.description}</small>
+              </article>
+            ))}
+            {!events.length && <EmptyInline text="尚無案件紀錄" />}
+          </div>
+        </section>
+
+        <section className="crm-section">
+          <h3>Google Calendar</h3>
+          <button className="sheet-submit compact-submit" type="button" onClick={createEvent}>新增行程</button>
+          {calendarError && <p className="form-error">{calendarError}</p>}
+          {events.map((event) => (
+            <article className="data-card calendar-event-card" key={event.id}>
+              <div>
+                <strong>{event.title}</strong>
+                <span>{event.startDate} {event.startTime} - {event.endTime}</span>
+                <small>{event.syncStatus === "SyncFailed" ? "同步失敗" : event.googleCalendarEventId ? "已加入 Google 行事曆" : "尚未同步"}</small>
+              </div>
+              <label className="editor-field">
+                <span>標題</span>
+                <input value={event.title} onChange={(input) => updateEvent(event.id, { title: input.target.value })} />
+              </label>
+              <label className="editor-field">
+                <span>行程類型</span>
+                <select value={event.eventType} onChange={(input) => updateEvent(event.id, { eventType: input.target.value as CalendarEventType })}>
+                  {calendarEventTypes.map((type) => <option key={type}>{type}</option>)}
+                </select>
+              </label>
+              <div className="calendar-grid">
+                <EditorInput label="開始日期" type="date" value={event.startDate} onChange={(value) => updateEvent(event.id, { startDate: value })} />
+                <EditorInput label="結束日期" type="date" value={event.endDate} onChange={(value) => updateEvent(event.id, { endDate: value })} />
+                <EditorInput label="開始時間" type="time" value={event.startTime} onChange={(value) => updateEvent(event.id, { startTime: value })} />
+                <EditorInput label="結束時間" type="time" value={event.endTime} onChange={(value) => updateEvent(event.id, { endTime: value })} />
+              </div>
+              <EditorInput label="地點" value={event.location} onChange={(value) => updateEvent(event.id, { location: value })} />
+              <EditorTextarea label="備註" value={event.description} onChange={(value) => updateEvent(event.id, { description: value })} />
+              <div className="marketing-actions">
+                <button type="button" onClick={() => createGoogleEvent(event.id)} disabled={calendarBusyId === event.id}>
+                  {calendarBusyId === event.id ? "同步中..." : "加入 Google 行事曆"}
+                </button>
+                <button type="button" onClick={() => syncEvent(event.id)} disabled={calendarBusyId === event.id}>
+                  {event.syncStatus === "Synced" ? "同步成功" : "雙向同步"}
+                </button>
+                <button type="button" onClick={() => void deleteEvent(event.id)} disabled={calendarBusyId === event.id}>刪除行程</button>
+              </div>
+            </article>
+          ))}
+        </section>
+
+        <section className="crm-section">
+          <h3>Tasks</h3>
+          <button className="sheet-submit compact-submit" type="button" onClick={createTask}>新增待辦</button>
+          {tasks.map((task) => (
+            <article className="data-card" key={task.id}>
+              <label className="editor-field">
+                <span>待辦</span>
+                <input value={task.title} onChange={(event) => updateTask(task.id, { title: event.target.value })} />
+              </label>
+              <EditorInput label="日期" type="date" value={task.dueDate} onChange={(value) => updateTask(task.id, { dueDate: value })} />
+              <button type="button" onClick={() => updateTask(task.id, { status: task.status === "已完成" ? "待處理" : "已完成" })}>
+                {task.status === "已完成" ? "改回待處理" : "完成"}
+              </button>
+            </article>
+          ))}
+          {!tasks.length && <EmptyInline text="尚無待辦" />}
+        </section>
+
+        <section className="crm-section">
+          <h3>Notes</h3>
+          <EditorTextarea label="備註" value={liveCase.notes} onChange={(value) => updateCase({ notes: value })} />
+        </section>
+
+        <section className="crm-section">
+          <h3>Files</h3>
+          {files.map((file) => <DetailBlock key={file.id} title={file.name} value={`${file.category}｜${file.aiSummary}`} />)}
+          {!files.length && <EmptyInline text="尚未綁定文件" />}
+        </section>
+
+        <section className="crm-section">
+          <h3>AI 建議</h3>
+          <DetailBlock title="AI Summary" value={liveCase.aiSummary || "尚未建立"} />
+          <DetailBlock title="AI Insight" value={liveCase.aiInsight || "尚未建立"} />
+          <DetailBlock title="AI 長期理解" value={liveCase.aiBrain || "尚未建立"} />
+        </section>
+      </div>
+
+      {showAiAssistant && (
+        <div className="sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setShowAiAssistant(false)}>
+          <section className="bottom-sheet inbox-compose">
+            <div className="sheet-handle" />
+            <header>
+              <div>
+                <p>Case → Context → Prompt</p>
+                <h2>AI 助理</h2>
+              </div>
+              <button type="button" className="icon-button" onClick={() => setShowAiAssistant(false)} aria-label="關閉">
+                <X />
+              </button>
+            </header>
+            <div className="input-type-grid">
+              {promptTemplateTypes.map((type) => (
+                <button type="button" key={type} className={promptType === type ? "selected" : ""} onClick={() => setPromptType(type)}>
+                  {type}
+                </button>
+              ))}
+            </div>
+            {promptType === "自由詢問" && (
+              <EditorTextarea label="想問 AI 什麼" value={customQuestion} onChange={setCustomQuestion} />
+            )}
+            <button className="sheet-submit" type="button" onClick={() => void generatePrompt()}>
+              產生並複製 Prompt
+            </button>
+            {aiMessage && <p>{aiMessage}</p>}
+            {generatedPrompt && <textarea className="prompt-preview" value={generatedPrompt} readOnly />}
+            <div className="marketing-actions">
+              <button type="button" onClick={() => openAiTool("chatgpt")}>開啟 ChatGPT</button>
+              <button type="button" onClick={() => openAiTool("claude")}>開啟 Claude</button>
+              <button type="button" onClick={() => openAiTool("gemini")}>開啟 Gemini</button>
+            </div>
+            <EditorTextarea label="貼上 AI 回答" value={aiResponse} onChange={setAiResponse} />
+            <div className="marketing-actions">
+              <button type="button" onClick={() => saveAiResponse("summary")}>存成 AI Summary</button>
+              <button type="button" onClick={() => saveAiResponse("insight")}>存成 AI Insight</button>
+              <button type="button" onClick={() => saveAiResponse("brain")}>更新 AI Brain</button>
+              <button type="button" onClick={() => saveAiResponse("event")}>寫入案件紀錄</button>
+            </div>
+          </section>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function EmptyInline({ text }: { text: string }) {
+  return (
+    <div className="empty-state">
+      <Clock3 />
+      <span>{text}</span>
+    </div>
+  );
+}
+
+function caseTypeText(type: CaseModel["type"]) {
+  return ({ Sale: "買賣", Rental: "租賃", Repair: "修繕", Warranty: "保固", Management: "管理" } as const)[type];
+}
+
+function caseStatusText(status: CaseModel["status"]) {
+  return ({ Active: "進行中", Closing: "成交中", Closed: "已結案", Archived: "已封存" } as const)[status];
 }
 
 function OperatingJourneyDetailPage({

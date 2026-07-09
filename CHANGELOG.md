@@ -5,6 +5,36 @@ MG-AIOS 採用 Daily Build。
 每天至少發布一個可以操作、可以驗收、可以開始使用的小版本。
 不累積大量功能一起發布，讓系統每天都比昨天更好用。
 
+## 2026-07-09
+
+### 今天新增什麼
+
+- 完成 P0 核心重構第一版：Case 成為系統中心。
+- 新增 Case Detail 頁，集中顯示 Journey、案件紀錄、Google Calendar、Tasks、Notes、Files、AI 建議。
+- Google Calendar 不再是獨立模組，所有 Calendar Event 必須綁定 Case ID。
+- 新增 Event Engine 欄位：事件日期、來源、優先級、建立者、完成時間。
+- 新增 Case Task，待辦事項掛回 Case。
+- 新增 AI Summary、AI Insight、AI Brain 到 Case。
+- 新增 Context Builder，將 Case、Contact、Property、Journey、Events、Attachments 整理成純文字 Context。
+- 新增 Prompt Builder，使用 Context + Prompt Template 產生可貼到 ChatGPT / Claude / Gemini 的 Prompt。
+- Case Detail 新增「AI 助理」：快速摘要、LINE 回覆、電話話術、成交分析、下一步建議、591 文案、FB 文案、短影音腳本、自由詢問。
+- AI 回答可貼回 MG-AIOS，並存成 AI Summary、AI Insight、AI Brain，或寫入案件紀錄。
+
+### 今天改善什麼
+
+- 首頁 TOP5 不再顯示 29184 這類機器分數。
+- 首頁卡片改顯示標籤、成交率、下一步與一句理由。
+- 點擊首頁 TOP5 會進入 Case Detail，而不是進入零散模組。
+- 取消獨立 Calendar Center 入口，行程回到每個案件內管理。
+- README 與產品規格改為 Case-first 架構。
+
+### 下一步做什麼
+
+- P0 資料安全：導入 Supabase PostgreSQL、Migration、Backup / Restore、Audit Log。
+- 將刪除流程改為封存與恢復。
+- 把現有 localStorage 資料遷移到正式資料庫。
+- 讓 Prompt Launcher 與行銷中心共用同一套 Context Builder。
+
 ## 2026-07-07
 
 ### 今天新增什麼

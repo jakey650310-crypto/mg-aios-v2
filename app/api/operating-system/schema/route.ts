@@ -2,9 +2,23 @@ export const runtime = "nodejs";
 
 const schema = {
   version: "MG-AIOS v2",
-  principle: "Property first. AI first, human confirms.",
+  principle: "Case first. ChatGPT is the brain. MG-AIOS is memory, workflow, prompt launcher, and system of record.",
   priorityFormula: "dealValue * probability * urgency * overdueDays",
   models: {
+    Case: [
+      "propertyId",
+      "caseRole",
+      "caseType",
+      "journeyIds",
+      "eventIds",
+      "taskIds",
+      "fileIds",
+      "financialIds",
+      "aiSummary",
+      "aiInsight",
+      "aiBrain",
+      "notes",
+    ],
     Property: [
       "ownerContactIds",
       "buyerContactIds",
@@ -25,6 +39,28 @@ const schema = {
       "reminderDate",
       "completedRecords",
       "history",
+    ],
+    Event: [
+      "caseId",
+      "eventType",
+      "title",
+      "description",
+      "eventDate",
+      "startTime",
+      "endTime",
+      "status",
+      "priority",
+      "source",
+      "googleCalendarEventId",
+    ],
+    PromptBuilder: [
+      "caseContext",
+      "promptTemplate",
+      "finalPrompt",
+      "copyToClipboard",
+      "openChatGPT",
+      "openClaude",
+      "openGemini",
     ],
     Repair: [
       "propertyId",

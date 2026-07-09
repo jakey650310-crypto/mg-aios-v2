@@ -201,11 +201,17 @@ export const seedOperatingSystem: OperatingSystemState = {
       id: "case-nankan-sale",
       propertyId: "property-nankan-a",
       type: "Sale",
+      caseRole: "買方",
       title: "南崁三房車買賣案",
       status: "Active",
       timeline: ["建立物件", "建立案件", "行銷曝光"],
       journeyIds: ["op-journey-claire", "op-journey-owner-wang"],
       eventIds: ["event-claire-showing"],
+      taskIds: ["task-claire-confirm-showing"],
+      notes: "以 Claire 看屋與王屋主委託為同一物件下的買賣推進案。",
+      aiSummary: "買方需求明確，屋主委託機會高，今天應優先推進看屋與屋主回訪。",
+      aiInsight: "Claire 已進入第二次看屋，適合推進到斡旋前準備。",
+      aiBrain: "此案同時有買方需求與屋主委託機會，適合用成交案例建立雙方信任。",
       fileIds: [],
       financialIds: [],
       createdAt: nowIso(),
@@ -215,11 +221,17 @@ export const seedOperatingSystem: OperatingSystemState = {
       id: "case-rental-management",
       propertyId: "property-rental-a",
       type: "Management",
+      caseRole: "承租方",
       title: "社宅租賃代管案",
       status: "Active",
       timeline: ["建立物件", "租賃追蹤", "修繕處理"],
       journeyIds: ["op-journey-tenant-chen"],
       eventIds: ["event-repair-followup"],
+      taskIds: ["task-repair-quote"],
+      notes: "租客等待冷氣修繕報價，今日需回覆進度。",
+      aiSummary: "租客等待修繕，若拖延會影響滿意度與續租意願。",
+      aiInsight: "此案重點不是成交，而是降低租客等待焦慮。",
+      aiBrain: "社宅代管案件要優先處理修繕回覆速度，避免小問題累積成信任問題。",
       fileIds: [],
       financialIds: [],
       createdAt: nowIso(),
@@ -234,6 +246,7 @@ export const seedOperatingSystem: OperatingSystemState = {
       caseId: "case-nankan-sale",
       contactIds: ["contact-claire"],
       eventType: "第二次看屋",
+      eventDate: todayValue(),
       startDate: todayValue(),
       endDate: todayValue(),
       startTime: "10:00",
@@ -241,6 +254,10 @@ export const seedOperatingSystem: OperatingSystemState = {
       location: "桃園市蘆竹區",
       description: "確認週六看屋時間與符合條件物件。",
       status: "Scheduled",
+      priority: "高",
+      source: "Manual",
+      createdBy: "蔡名廣",
+      completedAt: "",
       googleCalendarEventId: "",
       syncStatus: "NotSynced",
       createdAt: nowIso(),
@@ -253,6 +270,7 @@ export const seedOperatingSystem: OperatingSystemState = {
       caseId: "case-rental-management",
       contactIds: ["contact-tenant-chen"],
       eventType: "修繕",
+      eventDate: todayValue(),
       startDate: todayValue(),
       endDate: todayValue(),
       startTime: "15:00",
@@ -260,8 +278,32 @@ export const seedOperatingSystem: OperatingSystemState = {
       location: "電話",
       description: "追師傅報價並回覆租客。",
       status: "Scheduled",
+      priority: "高",
+      source: "Manual",
+      createdBy: "蔡名廣",
+      completedAt: "",
       googleCalendarEventId: "",
       syncStatus: "NotSynced",
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    },
+  ],
+  caseTasks: [
+    {
+      id: "task-claire-confirm-showing",
+      caseId: "case-nankan-sale",
+      title: "確認 Claire 週六看屋時間",
+      status: "待處理",
+      dueDate: todayValue(),
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    },
+    {
+      id: "task-repair-quote",
+      caseId: "case-rental-management",
+      title: "追冷氣修繕報價並回覆租客",
+      status: "待處理",
+      dueDate: todayValue(),
       createdAt: nowIso(),
       updatedAt: nowIso(),
     },
@@ -289,6 +331,10 @@ function contactNames(contacts: ContactModel[], ids: string[]) {
   return names.length ? names.join("、") : "未關聯客戶";
 }
 
+function findCaseByProperty(state: OperatingSystemState, propertyId: string) {
+  return state.cases.find((caseItem) => caseItem.propertyId === propertyId);
+}
+
 function todayKey() {
   return new Date().toLocaleDateString("sv-SE");
 }
@@ -299,14 +345,19 @@ export function buildAiPriorityItems(state: OperatingSystemState): AiPriorityIte
     .map((event) => {
       const property = findProperty(state.properties, event.propertyId);
       const journey = state.journeys.find((item) => item.propertyId === event.propertyId);
+      const caseItem = state.cases.find((item) => item.id === event.caseId) || findCaseByProperty(state, event.propertyId);
       return {
         id: event.id,
         title: event.title,
         subtitle: `${event.startTime || "未設定時間"}｜${property?.community || "未關聯物件"}｜${event.eventType}`,
         nextStep: event.description || "依行程推進下一步",
         propertyId: event.propertyId,
+        caseId: caseItem?.id,
         contactIds: event.contactIds,
         type: "Calendar" as const,
+        displayTag: event.startTime ? "🔥 今天有約" : "🟢 今日行程",
+        reason: event.description || "今日有已排定行程，需要準時推進。",
+        probability: journey?.probability || 50,
         score: calculateAiPriorityScore({
           dealValue: journey?.dealValue || 100,
           probability: journey?.probability || 50,
@@ -320,14 +371,19 @@ export function buildAiPriorityItems(state: OperatingSystemState): AiPriorityIte
     .filter((journey) => journey.status !== "已完成")
     .map((journey) => {
       const property = findProperty(state.properties, journey.propertyId);
+      const caseItem = findCaseByProperty(state, journey.propertyId);
       return {
         id: journey.id,
         title: contactNames(state.contacts, journey.contactIds),
         subtitle: `${property?.community || "未關聯物件"}｜${journey.currentStage}`,
         nextStep: journey.nextStep,
         propertyId: journey.propertyId,
+        caseId: caseItem?.id,
         contactIds: journey.contactIds,
         type: "Journey" as const,
+        displayTag: journey.overdueDays > 0 ? "🔥 已逾期" : journey.reminderDate === todayKey() ? "🟢 今天要做" : "🟡 建議推進",
+        reason: journey.aiSuggestion || "依成交價值與成交機率排序，建議今天處理。",
+        probability: journey.probability,
         score: calculateAiPriorityScore({
           dealValue: journey.dealValue,
           probability: journey.probability,
@@ -341,14 +397,19 @@ export function buildAiPriorityItems(state: OperatingSystemState): AiPriorityIte
     .filter((repair) => repair.status !== "已完成")
     .map((repair) => {
       const property = findProperty(state.properties, repair.propertyId);
+      const caseItem = findCaseByProperty(state, repair.propertyId);
       return {
         id: repair.id,
         title: repair.issue,
         subtitle: `${property?.community || "未關聯物件"}｜${repair.status}`,
         nextStep: repair.aiReminder,
         propertyId: repair.propertyId,
+        caseId: caseItem?.id,
         contactIds: property?.tenantIds || [],
         type: "Repair" as const,
+        displayTag: "🔴 修繕待處理",
+        reason: repair.aiReminder || "修繕會影響服務品質，需追蹤進度。",
+        probability: 50,
         score: calculateAiPriorityScore({
           dealValue: Number(repair.cost) || 80,
           probability: 50,
@@ -368,8 +429,12 @@ export function buildAiPriorityItems(state: OperatingSystemState): AiPriorityIte
         subtitle: `${property?.community || "未關聯物件"}｜成交中心`,
         nextStep: `完成${task.title}`,
         propertyId: record.propertyId,
+        caseId: record.caseId,
         contactIds: [],
         type: "Closing" as const,
+        displayTag: "🔥 成交流程",
+        reason: "成交流程不能漏件，需優先完成。",
+        probability: 95,
         score: calculateAiPriorityScore({
           dealValue: Number(record.dealPrice.replace(/\D/g, "")) || 100,
           probability: 95,
@@ -389,8 +454,12 @@ export function buildAiPriorityItems(state: OperatingSystemState): AiPriorityIte
         subtitle: `${property?.community || "未關聯物件"}｜行銷需要更新`,
         nextStep: "更新已發布行銷內容",
         propertyId: item.propertyId,
+        caseId: findCaseByProperty(state, item.propertyId)?.id,
         contactIds: [],
         type: "Marketing" as const,
+        displayTag: "🟡 行銷更新",
+        reason: "物件價格已變更，已發布內容需要同步更新。",
+        probability: 70,
         score: calculateAiPriorityScore({
           dealValue: Number(property?.totalPrice.replace(/\D/g, "")) || 100,
           probability: 70,
@@ -404,6 +473,24 @@ export function buildAiPriorityItems(state: OperatingSystemState): AiPriorityIte
 }
 
 export function normalizeOperatingSystemState(state: Partial<OperatingSystemState>): OperatingSystemState {
+  const cases = (state.cases || seedOperatingSystem.cases).map((caseItem) => ({
+    ...caseItem,
+    caseRole: caseItem.caseRole || "其他",
+    taskIds: caseItem.taskIds || [],
+    notes: caseItem.notes || "",
+    aiSummary: caseItem.aiSummary || "",
+    aiInsight: caseItem.aiInsight || "",
+    aiBrain: caseItem.aiBrain || "",
+  }));
+  const calendarEvents = (state.calendarEvents || seedOperatingSystem.calendarEvents).map((event) => ({
+    ...event,
+    eventDate: event.eventDate || event.startDate,
+    priority: event.priority || "中",
+    source: event.source || "Manual",
+    createdBy: event.createdBy || "蔡名廣",
+    completedAt: event.completedAt || "",
+  }));
+
   return {
     properties: state.properties || seedOperatingSystem.properties,
     contacts: state.contacts || seedOperatingSystem.contacts,
@@ -412,8 +499,9 @@ export function normalizeOperatingSystemState(state: Partial<OperatingSystemStat
     files: state.files || [],
     financials: state.financials || [],
     marketingContents: state.marketingContents || [],
-    cases: state.cases || seedOperatingSystem.cases,
-    calendarEvents: state.calendarEvents || seedOperatingSystem.calendarEvents,
+    cases,
+    calendarEvents,
+    caseTasks: state.caseTasks || seedOperatingSystem.caseTasks,
     closingRecords: state.closingRecords || [],
     aiCenter: state.aiCenter || seedOperatingSystem.aiCenter,
   };
