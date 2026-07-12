@@ -1,14 +1,18 @@
 export const runtime = "nodejs";
 
 const schema = {
-  version: "MG-AIOS v2",
-  principle: "Case first. ChatGPT is the brain. MG-AIOS is memory, workflow, prompt launcher, and system of record.",
+  version: "MG-AIOS v4",
+  principle: "Case first. ChatGPT handles thinking. MG-AIOS is the AI Workspace, system of record, and workflow center.",
   priorityFormula: "dealValue * probability * urgency * overdueDays",
   models: {
     Case: [
       "propertyId",
       "caseRole",
       "caseType",
+      "currentStage",
+      "nextStep",
+      "reminderDate",
+      "sourceContentHash",
       "journeyIds",
       "eventIds",
       "taskIds",
@@ -18,6 +22,20 @@ const schema = {
       "aiInsight",
       "aiBrain",
       "notes",
+    ],
+    ChatGptImport: [
+      "contact",
+      "property",
+      "caseTitle",
+      "caseType",
+      "caseRole",
+      "summary",
+      "insight",
+      "stage",
+      "nextStep",
+      "reminderDate",
+      "finalContent",
+      "sourceHash",
     ],
     Property: [
       "ownerContactIds",
@@ -51,6 +69,7 @@ const schema = {
       "status",
       "priority",
       "source",
+      "aiResponseHash",
       "googleCalendarEventId",
     ],
     PromptBuilder: [

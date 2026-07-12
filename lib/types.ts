@@ -250,6 +250,10 @@ export interface CaseModel {
   caseRole: CaseRole;
   title: string;
   status: CaseStatus;
+  currentStage?: string;
+  nextStep?: string;
+  reminderDate?: string;
+  sourceContentHash?: string;
   timeline: string[];
   journeyIds: string[];
   eventIds: string[];
@@ -350,7 +354,7 @@ export interface AiPriorityItem {
   propertyId: string;
   caseId?: string;
   contactIds: string[];
-  type: "Journey" | "Repair" | "Financial" | "AI" | "Calendar" | "Closing" | "Marketing";
+  type: "Case" | "Journey" | "Repair" | "Financial" | "AI" | "Calendar" | "Closing" | "Marketing";
   displayTag?: string;
   reason?: string;
   probability?: number;

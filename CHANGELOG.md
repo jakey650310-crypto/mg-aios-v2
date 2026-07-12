@@ -9,6 +9,14 @@ MG-AIOS 採用 Daily Build。
 
 ### 今天新增什麼
 
+- 本次 Sprint：新增「貼上 ChatGPT 整理結果」單一輸入窗口。
+- 支援固定格式解析：聯絡人、物件、案件名稱、案件類型、使用者指定身分、案件摘要、重要發現、目前階段、下一步、提醒日期、最終文案或話術。
+- 新增分類預覽頁，每個欄位可手動修改，缺少必要欄位會顯示提醒。
+- 確認後一次性建立或關聯 Contact、Property、Case、Journey 與一筆主要 Event / Timeline。
+- 同一份整理結果使用 source hash 防重複，避免快速連點或重複貼上造成多筆案件。
+- Case 卡片列表可點擊進入 Case 工作台。
+- Case 工作台新增案件現況與外部工具入口：ChatGPT、住商 AI 生態圈、LINE、Google Calendar、591、Facebook。
+- README 明確標示目前仍為 localStorage，尚未達成正式資料庫永久保存。
 - V4 產品定位校正：MG-AIOS 是 AI 工作平台，不是 CRM、Notion 或另一個 ChatGPT。
 - 介面名稱從「AI 店長」調整為「AI 工作台」。
 - 首頁文案改為 AI Workspace：MG-AIOS 管理案件脈絡與 AI 工具入口，ChatGPT / Claude / Gemini 負責思考，使用者負責成交。

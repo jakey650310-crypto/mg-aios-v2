@@ -31,6 +31,8 @@ import type {
   CaseTaskModel,
   CalendarEventModel,
   CalendarEventType,
+  CaseRole,
+  CaseType,
   MarketingContentModel,
   MarketingPlatform,
   OperatingJourneyModel,
@@ -45,6 +47,41 @@ import { useOperatingSystem } from "@/lib/use-operating-system";
 
 type OperatingModuleKey = "dashboard" | "property" | "contact" | "journey" | "repair" | "marketing" | "closing" | "documents" | "ai";
 type InputMode = "text" | "line" | "photo";
+type ParsedFieldKey =
+  | "contact"
+  | "property"
+  | "caseTitle"
+  | "caseType"
+  | "caseRole"
+  | "summary"
+  | "insight"
+  | "stage"
+  | "nextStep"
+  | "reminderDate"
+  | "finalContent";
+
+type ParsedChatGptImport = Record<ParsedFieldKey, string> & {
+  sourceText: string;
+  sourceHash: string;
+  dateWarning: string;
+  selectedContactId: string;
+};
+
+const parsedFieldLabels: Record<ParsedFieldKey, string> = {
+  contact: "聯絡人",
+  property: "物件",
+  caseTitle: "案件名稱",
+  caseType: "案件類型",
+  caseRole: "使用者指定身分",
+  summary: "案件摘要",
+  insight: "重要發現",
+  stage: "目前階段",
+  nextStep: "下一步",
+  reminderDate: "提醒日期",
+  finalContent: "最終文案或話術",
+};
+
+const requiredParsedFields: ParsedFieldKey[] = ["contact", "caseTitle", "caseType", "caseRole", "nextStep"];
 
 const moduleLabels: Record<OperatingModuleKey, { title: string; subtitle: string }> = {
   dashboard: { title: "首頁", subtitle: "AI 今日工作中心" },
@@ -106,8 +143,16 @@ export function CommandCenter() {
   const [activeCase, setActiveCase] = useState<CaseModel | null>(null);
   const [showInbox, setShowInbox] = useState(false);
 
-  const topFive = operatingSystem.todayTopFive;
   const state = operatingSystem.state;
+  const topFive = useMemo(() => {
+    const seen = new Set<string>();
+    return operatingSystem.aiPriorityItems.filter((item) => {
+      const key = item.caseId || `${item.type}-${item.id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).slice(0, 5);
+  }, [operatingSystem.aiPriorityItems]);
 
   useEffect(() => {
     if (!operatingSystem.ready) return;
@@ -242,7 +287,7 @@ export function CommandCenter() {
           <ClipboardList />
           產品待辦
         </Link>
-        <button className="icon-button" onClick={() => setShowInbox(true)} aria-label="新增 AI 摘要">
+        <button className="icon-button" onClick={() => setShowInbox(true)} aria-label="貼上 ChatGPT 整理結果">
           <Inbox />
         </button>
       </header>
@@ -253,7 +298,7 @@ export function CommandCenter() {
         <span>MG-AIOS 管理案件脈絡與 AI 工具入口。ChatGPT / Claude / Gemini 負責思考，使用者負責成交。</span>
         <button className="primary-command" onClick={() => setShowInbox(true)}>
           <CirclePlus />
-          新增 AI 摘要
+          貼上 ChatGPT 整理結果
         </button>
       </section>
 
@@ -261,16 +306,7 @@ export function CommandCenter() {
         <SectionTitle icon={TrendingUp} title="今天最值得做的五件事" count={topFive.length} hint="依案件脈絡、成交價值、關係推進與時效排序" />
         <div className="ai-priority-list">
           {topFive.map((item, index) => (
-            <button className="ai-priority-card" key={`${item.type}-${item.id}`} onClick={() => openPriorityItem(item)}>
-              <b>{index + 1}</b>
-              <div>
-                <strong>{item.title}</strong>
-                <span>{item.displayTag || item.subtitle}{item.probability ? `｜成交率 ${item.probability}%` : ""}</span>
-                <small>{item.nextStep}</small>
-                <small>{item.reason || item.subtitle}</small>
-              </div>
-              <em>查看</em>
-            </button>
+            <PriorityCaseCard key={`${item.type}-${item.id}`} item={item} index={index} state={state} onOpen={() => openPriorityItem(item)} />
           ))}
         </div>
       </section>
@@ -298,12 +334,12 @@ export function CommandCenter() {
       </section>
 
       <section className="decision-section">
-        <SectionTitle icon={Inbox} title="AI 收件匣" count={state.journeys.length} hint="AI 先整理，人再確認" />
+        <SectionTitle icon={Inbox} title="ChatGPT 整理結果" count={state.cases.length} hint="單一輸入窗口，確認後才寫入案件" />
         <button className="inbox-entry" onClick={() => setShowInbox(true)}>
           <Inbox />
           <span>
-            <strong>貼上文字或上傳截圖</strong>
-            <small>MG-AIOS 會自動整理成案件旅程草稿。</small>
+            <strong>貼上 ChatGPT 整理結果</strong>
+            <small>依固定格式解析 Contact、Property、Case、Event 與案件紀錄。</small>
           </span>
         </button>
       </section>
@@ -338,7 +374,14 @@ export function CommandCenter() {
           onDelete={deleteJourney}
         />
       )}
-      {showInbox && <AiInboxSheet onClose={() => setShowInbox(false)} onAccept={acceptDraft} />}
+      {showInbox && (
+        <ChatGptImportSheet
+          state={state}
+          onSetState={operatingSystem.setState}
+          onClose={() => setShowInbox(false)}
+          onOpenCase={setActiveCase}
+        />
+      )}
     </main>
   );
 }
@@ -393,6 +436,39 @@ function Metric({ label, value }: { label: string; value: string }) {
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
+  );
+}
+
+function PriorityCaseCard({
+  item,
+  index,
+  state,
+  onOpen,
+}: {
+  item: AiPriorityItem;
+  index: number;
+  state: OperatingSystemState;
+  onOpen: () => void;
+}) {
+  const caseItem = item.caseId ? findCase(state, item.caseId) : undefined;
+  const journey = item.type === "Journey" ? state.journeys.find((entry) => entry.id === item.id) : undefined;
+  const displayCase = caseItem || findCaseByProperty(state, item.propertyId);
+  const stage = displayCase?.currentStage || journey?.currentStage || item.subtitle;
+  const nextStep = displayCase?.nextStep || journey?.nextStep || item.nextStep;
+  const reminder = displayCase?.reminderDate || journey?.reminderDate || "未設定";
+  const updated = displayCase?.updatedAt || journey?.updatedAt || "";
+
+  return (
+    <button className="ai-priority-card" onClick={onOpen}>
+      <b>{index + 1}</b>
+      <div>
+        <strong>{displayCase?.title || item.title}</strong>
+        <span>{displayCase?.caseRole || "未指定身分"}｜{stage}</span>
+        <small>{nextStep}</small>
+        <small>{reminder}｜{item.reason || "依案件時效與下一步排序"}｜更新 {updated ? formatDate(updated) : "未記錄"}</small>
+      </div>
+      <em>查看</em>
+    </button>
   );
 }
 
@@ -461,7 +537,7 @@ function OperatingModulePage({
         )}
         {moduleKey === "property" && <PropertyList state={state} onSetState={onSetState} onOpenModule={onOpenModule} onOpenCase={onOpenCase} />}
         {moduleKey === "contact" && <ContactList contacts={state.contacts} journeys={state.journeys} properties={state.properties} />}
-        {moduleKey === "journey" && <JourneyList journeys={state.journeys} state={state} onOpenJourney={onOpenJourney} />}
+        {moduleKey === "journey" && <CaseList state={state} onOpenCase={onOpenCase} />}
         {moduleKey === "repair" && <RepairList repairs={state.repairs} properties={state.properties} />}
         {moduleKey === "marketing" && <MarketingCenter state={state} onSetState={onSetState} />}
         {moduleKey === "closing" && <ClosingCenter state={state} onSetState={onSetState} onOpenModule={onOpenModule} />}
@@ -679,6 +755,30 @@ function JourneyList({
             </div>
             <em>{journey.probability}%</em>
             <span>{journey.nextStep}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function CaseList({ state, onOpenCase }: { state: OperatingSystemState; onOpenCase: (caseItem: CaseModel) => void }) {
+  return (
+    <div className="data-list">
+      {state.cases.map((caseItem) => {
+        const property = findProperty(state, caseItem.propertyId);
+        const events = state.calendarEvents.filter((event) => event.caseId === caseItem.id);
+        const latestEvent = events.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+        return (
+          <button className="data-card tappable-card" key={caseItem.id} onClick={() => onOpenCase(caseItem)}>
+            <div>
+              <strong>{caseItem.title}</strong>
+              <span>{caseItem.caseRole}｜{caseTypeText(caseItem.type)}｜{caseItem.currentStage || "待確認"}</span>
+              <small>{property?.community || "未關聯物件"}｜提醒 {caseItem.reminderDate || "未設定"}</small>
+            </div>
+            <em>查看</em>
+            <span>{caseItem.nextStep || "尚未設定下一步"}</span>
+            <small>最近更新 {formatDate(latestEvent?.updatedAt || caseItem.updatedAt)}</small>
           </button>
         );
       })}
@@ -1762,6 +1862,18 @@ function CaseDetailPage({
     window.open(urls[tool], "_blank", "noopener,noreferrer");
   }
 
+  function openExternalTool(tool: "chatgpt" | "hbhousing" | "line" | "googleCalendar" | "591" | "facebook") {
+    const urls = {
+      chatgpt: "https://chatgpt.com/",
+      hbhousing: "https://www.hbhousing.com.tw/",
+      line: "https://line.me/",
+      googleCalendar: "https://calendar.google.com/calendar/u/0/r",
+      "591": "https://www.591.com.tw/",
+      facebook: "https://www.facebook.com/",
+    };
+    window.open(urls[tool], "_blank", "noopener,noreferrer");
+  }
+
   function parseAiResponse() {
     const content = aiResponse.trim();
     if (!content) {
@@ -1864,6 +1976,31 @@ function CaseDetailPage({
             <Sparkles />
             AI 工作台
           </button>
+        </section>
+
+        <section className="crm-section">
+          <h3>案件現況</h3>
+          <DetailBlock title="聯絡人" value={contactNames(state, Array.from(new Set(journeys.flatMap((journey) => journey.contactIds))))} />
+          <DetailBlock title="關聯物件" value={property ? `${property.community}｜${property.address || "地址未填"}` : "未關聯物件"} />
+          <DetailBlock title="使用者指定身分" value={liveCase.caseRole} />
+          <DetailBlock title="案件類型" value={caseTypeText(liveCase.type)} />
+          <DetailBlock title="目前階段" value={liveCase.currentStage || journeys[0]?.currentStage || "待確認"} />
+          <DetailBlock title="最新摘要" value={liveCase.aiSummary || "尚未建立"} />
+          <DetailBlock title="重要發現" value={liveCase.aiInsight || "尚未建立"} />
+          <DetailBlock title="下一步" value={liveCase.nextStep || journeys[0]?.nextStep || "尚未設定"} />
+          <DetailBlock title="提醒日期" value={liveCase.reminderDate || journeys[0]?.reminderDate || "未設定"} />
+        </section>
+
+        <section className="crm-section">
+          <h3>外部工具入口</h3>
+          <div className="marketing-actions">
+            <button type="button" onClick={() => openExternalTool("chatgpt")}>開啟 ChatGPT</button>
+            <button type="button" onClick={() => openExternalTool("hbhousing")}>開啟住商 AI 生態圈</button>
+            <button type="button" onClick={() => openExternalTool("line")}>開啟 LINE</button>
+            <button type="button" onClick={() => openExternalTool("googleCalendar")}>開啟 Google Calendar</button>
+            <button type="button" onClick={() => openExternalTool("591")}>開啟 591</button>
+            <button type="button" onClick={() => openExternalTool("facebook")}>開啟 Facebook</button>
+          </div>
         </section>
 
         <section className="crm-section">
@@ -2089,12 +2226,420 @@ function hashText(value: string) {
   return hash.toString(36);
 }
 
+const structuredInputExample = `請貼上 ChatGPT 整理結果，例如：
+
+【聯絡人】
+王先生
+
+【物件】
+南崁三房車
+
+【案件名稱】
+王先生南崁委託前追蹤
+
+【案件類型】
+買賣
+
+【使用者指定身分】
+屋主
+
+【案件摘要】
+已聊過一次，屋主目前對市場仍在觀望。
+
+【重要發現】
+屋主真正擔心的是麻煩，不是價格。
+
+【目前階段】
+委託前
+
+【下一步】
+再次拜訪，只更新市場資訊，不急著談價格。
+
+【提醒日期】
+2026/07/15
+
+【最終文案或話術】
+王先生，我今天剛好整理到附近近期成交...`;
+
+function parseStructuredText(sourceText: string): ParsedChatGptImport {
+  const fieldMap: Record<string, ParsedFieldKey> = {
+    聯絡人: "contact",
+    物件: "property",
+    案件名稱: "caseTitle",
+    案件類型: "caseType",
+    使用者指定身分: "caseRole",
+    案件摘要: "summary",
+    重要發現: "insight",
+    目前階段: "stage",
+    下一步: "nextStep",
+    提醒日期: "reminderDate",
+    最終文案或話術: "finalContent",
+  };
+  const result: Record<ParsedFieldKey, string> = {
+    contact: "",
+    property: "",
+    caseTitle: "",
+    caseType: "",
+    caseRole: "",
+    summary: "",
+    insight: "",
+    stage: "",
+    nextStep: "",
+    reminderDate: "",
+    finalContent: "",
+  };
+  const matches = Array.from(sourceText.matchAll(/【([^】]+)】/g));
+  matches.forEach((match, index) => {
+    const label = match[1].trim();
+    const field = fieldMap[label];
+    if (!field) return;
+    const start = (match.index || 0) + match[0].length;
+    const end = index + 1 < matches.length ? matches[index + 1].index || sourceText.length : sourceText.length;
+    result[field] = sourceText.slice(start, end).trim();
+  });
+
+  return {
+    ...result,
+    sourceText,
+    sourceHash: hashText(sourceText.trim()),
+    dateWarning: validateReminderDate(result.reminderDate),
+    selectedContactId: "",
+  };
+}
+
+function validateReminderDate(value: string) {
+  if (!value.trim()) return "";
+  return parseDateValue(value) ? "" : "提醒日期無法自動解析，系統會保留原文字，請確認。";
+}
+
+function parseDateValue(value: string) {
+  const text = value.trim();
+  if (!text) return "";
+  const normalized = text.replace(/[年月.]/g, "/").replace(/日/g, "").replace(/-/g, "/");
+  const match = normalized.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})/);
+  if (!match) return "";
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return "";
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function normalizeCaseRole(value: string): CaseRole {
+  const trimmed = value.trim();
+  const allowed: CaseRole[] = ["買方", "屋主", "出租方", "承租方", "廠商", "介紹人", "共同持有人", "其他"];
+  return allowed.includes(trimmed as CaseRole) ? trimmed as CaseRole : "其他";
+}
+
+function normalizeCaseType(value: string): CaseType {
+  if (/租/.test(value)) return "Rental";
+  if (/修繕|報修|保固/.test(value)) return "Repair";
+  if (/管理|代管/.test(value)) return "Management";
+  return "Sale";
+}
+
+function journeyTypeFromCase(caseType: CaseType, caseRole: CaseRole): OperatingJourneyType {
+  if (caseType === "Repair" || caseRole === "廠商") return "Repair";
+  if (caseRole === "屋主" || caseRole === "出租方") return "Owner";
+  if (caseRole === "承租方") return "Tenant";
+  return "Buyer";
+}
+
 function caseTypeText(type: CaseModel["type"]) {
   return ({ Sale: "買賣", Rental: "租賃", Repair: "修繕", Warranty: "保固", Management: "管理" } as const)[type];
 }
 
 function caseStatusText(status: CaseModel["status"]) {
   return ({ Active: "進行中", Closing: "成交中", Closed: "已結案", Archived: "已封存" } as const)[status];
+}
+
+function ChatGptImportSheet({
+  state,
+  onSetState,
+  onClose,
+  onOpenCase,
+}: {
+  state: OperatingSystemState;
+  onSetState: (updater: (current: OperatingSystemState) => OperatingSystemState) => void;
+  onClose: () => void;
+  onOpenCase: (caseItem: CaseModel) => void;
+}) {
+  const [sourceText, setSourceText] = useState("");
+  const [draft, setDraft] = useState<ParsedChatGptImport | null>(null);
+  const [error, setError] = useState("");
+  const [toast, setToast] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const sameNameContacts = draft ? state.contacts.filter((contact) => contact.name === draft.contact.trim()) : [];
+  const missingFields = draft ? requiredParsedFields.filter((field) => !draft[field].trim()) : [];
+  const hasDuplicateSource = draft ? state.cases.some((caseItem) => caseItem.sourceContentHash === draft.sourceHash) : false;
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(""), 2600);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  function parseInput() {
+    setError("");
+    if (!sourceText.trim()) {
+      setError("請先貼上 ChatGPT 整理結果。");
+      return;
+    }
+    const parsed = parseStructuredText(sourceText);
+    if (state.cases.some((caseItem) => caseItem.sourceContentHash === parsed.sourceHash)) {
+      setError("這份整理結果已經建立過案件，不會重複寫入。");
+    }
+    setDraft(parsed);
+  }
+
+  function updateDraft(field: ParsedFieldKey, value: string) {
+    setDraft((current) => current ? { ...current, [field]: value, dateWarning: field === "reminderDate" ? validateReminderDate(value) : current.dateWarning } : current);
+  }
+
+  function confirmCreate() {
+    if (!draft || submitting) return;
+    setError("");
+    const missing = requiredParsedFields.filter((field) => !draft[field].trim());
+    if (missing.length) {
+      setError(`請補齊必要欄位：${missing.map((field) => parsedFieldLabels[field]).join("、")}`);
+      return;
+    }
+    if (hasDuplicateSource) {
+      setError("這份整理結果已經建立過案件，不會重複寫入。");
+      return;
+    }
+    if (sameNameContacts.length > 1 && !draft.selectedContactId) {
+      setError("已有多筆同名聯絡人，請先選擇要關聯哪一位。");
+      return;
+    }
+
+    setSubmitting(true);
+    const now = nowIso();
+    const caseId = crypto.randomUUID();
+    const eventId = crypto.randomUUID();
+    const journeyId = crypto.randomUUID();
+    let createdCase: CaseModel | null = null;
+
+    onSetState((current) => {
+      if (current.cases.some((caseItem) => caseItem.sourceContentHash === draft.sourceHash)) return current;
+      const existingContacts = current.contacts.filter((contact) => contact.name === draft.contact.trim());
+      const linkedContact = draft.selectedContactId
+        ? current.contacts.find((contact) => contact.id === draft.selectedContactId)
+        : existingContacts.length === 1
+          ? existingContacts[0]
+          : undefined;
+      const contactId = linkedContact?.id || crypto.randomUUID();
+      const contact = linkedContact || {
+        id: contactId,
+        name: draft.contact.trim(),
+        phone: "",
+        line: "",
+        email: "",
+        job: "",
+        birthday: "",
+        roles: [],
+        tags: [],
+        aiSummary: draft.summary,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const existingProperty = draft.property.trim()
+        ? current.properties.find((property) => property.community === draft.property.trim() || property.address === draft.property.trim())
+        : undefined;
+      const propertyId = draft.property.trim() ? (existingProperty?.id || crypto.randomUUID()) : "";
+      const property = existingProperty || (draft.property.trim()
+        ? {
+            id: propertyId,
+            community: draft.property.trim(),
+            address: "",
+            propertyType: "待確認",
+            totalPrice: "待確認",
+            area: "待確認",
+            status: "出售中" as const,
+            ownerIds: [],
+            buyerIds: [],
+            tenantIds: [],
+            journeyIds: [journeyId],
+            repairIds: [],
+            fileIds: [],
+            financialIds: [],
+            caseIds: [caseId],
+            aiAnalysis: draft.summary || draft.insight,
+            createdAt: now,
+            updatedAt: now,
+          }
+        : null);
+      const caseType = normalizeCaseType(draft.caseType);
+      const caseRole = normalizeCaseRole(draft.caseRole);
+      const journey = {
+        id: journeyId,
+        type: journeyTypeFromCase(caseType, caseRole),
+        propertyId,
+        contactIds: [contactId],
+        currentStage: draft.stage || "待確認",
+        nextStep: draft.nextStep,
+        probability: 50,
+        aiSuggestion: draft.summary || draft.insight || "由 ChatGPT 整理結果建立，請確認下一步。",
+        reminderDate: parseDateValue(draft.reminderDate),
+        completedRecords: [],
+        history: [],
+        dealValue: 100,
+        urgency: draft.reminderDate ? 4 : 3,
+        overdueDays: 0,
+        status: "待處理" as const,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const event = {
+        id: eventId,
+        title: `建立案件：${draft.caseTitle}`,
+        propertyId,
+        caseId,
+        contactIds: [contactId],
+        eventType: "AI分析" as const,
+        eventDate: parseDateValue(draft.reminderDate) || new Date().toLocaleDateString("sv-SE"),
+        startDate: parseDateValue(draft.reminderDate) || new Date().toLocaleDateString("sv-SE"),
+        endDate: parseDateValue(draft.reminderDate) || new Date().toLocaleDateString("sv-SE"),
+        startTime: "",
+        endTime: "",
+        location: "",
+        description: draft.summary || draft.nextStep,
+        status: "Done" as const,
+        priority: "中" as const,
+        source: "AI" as const,
+        createdBy: "蔡名廣",
+        completedAt: now,
+        aiResponseHash: draft.sourceHash,
+        googleCalendarEventId: "",
+        syncStatus: "NotSynced" as const,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const nextCase: CaseModel = {
+        id: caseId,
+        propertyId,
+        type: caseType,
+        caseRole,
+        title: draft.caseTitle.trim(),
+        status: "Active",
+        currentStage: draft.stage || "待確認",
+        nextStep: draft.nextStep,
+        reminderDate: parseDateValue(draft.reminderDate) || draft.reminderDate,
+        sourceContentHash: draft.sourceHash,
+        timeline: ["貼上 ChatGPT 整理結果", "確認並建立案件"],
+        journeyIds: [journeyId],
+        eventIds: [eventId],
+        taskIds: [],
+        notes: draft.finalContent,
+        aiSummary: draft.summary,
+        aiInsight: draft.insight,
+        aiBrain: draft.insight,
+        fileIds: [],
+        financialIds: [],
+        createdAt: now,
+        updatedAt: now,
+      };
+      createdCase = nextCase;
+
+      return {
+        ...current,
+        contacts: linkedContact
+          ? current.contacts.map((item) => item.id === linkedContact.id ? { ...item, aiSummary: item.aiSummary || draft.summary, updatedAt: now } : item)
+          : [contact, ...current.contacts],
+        properties: property
+          ? existingProperty
+            ? current.properties.map((item) =>
+                item.id === existingProperty.id
+                  ? { ...item, journeyIds: [journeyId, ...item.journeyIds], caseIds: [caseId, ...(item.caseIds || [])], updatedAt: now }
+                  : item,
+              )
+            : [property, ...current.properties]
+          : current.properties,
+        cases: [nextCase, ...current.cases],
+        journeys: [journey, ...current.journeys],
+        calendarEvents: [event, ...current.calendarEvents],
+      };
+    });
+
+    window.setTimeout(() => {
+      setSubmitting(false);
+      setToast("✓ 已建立案件");
+      if (createdCase) {
+        onOpenCase(createdCase);
+        onClose();
+      }
+    }, 250);
+  }
+
+  return (
+    <div className="sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section className="bottom-sheet inbox-compose">
+        <div className="sheet-handle" />
+        {toast && <div className="floating-toast">{toast}</div>}
+        <header>
+          <div>
+            <p>單一輸入窗口</p>
+            <h2>貼上 ChatGPT 整理結果</h2>
+          </div>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="關閉">
+            <X />
+          </button>
+        </header>
+
+        {!draft ? (
+          <>
+            <label>
+              <span>ChatGPT 整理結果</span>
+              <textarea value={sourceText} onChange={(event) => setSourceText(event.target.value)} placeholder={structuredInputExample} />
+            </label>
+            {error && <p className="form-error">{error}</p>}
+            <p>請使用固定標記。角色與案件類型由你指定，MG-AIOS 不會自行猜測或更改。</p>
+            <button className="sheet-submit" type="button" disabled={!sourceText.trim()} onClick={parseInput}>
+              解析並預覽
+            </button>
+          </>
+        ) : (
+          <div className="ai-preview">
+            <div className="ai-preview-head">
+              <strong>分類預覽</strong>
+              <span>{missingFields.length ? `缺少 ${missingFields.length} 個必要欄位` : "必要欄位已完成"}</span>
+            </div>
+            {hasDuplicateSource && <p className="form-error">這份整理結果已建立過案件，系統已阻止重複寫入。</p>}
+            {error && <p className="form-error">{error}</p>}
+            {draft.dateWarning && <p className="form-error">{draft.dateWarning}</p>}
+            {sameNameContacts.length > 1 && (
+              <label>
+                <span>同名聯絡人，請選擇關聯對象</span>
+                <select value={draft.selectedContactId} onChange={(event) => setDraft((current) => current ? { ...current, selectedContactId: event.target.value } : current)}>
+                  <option value="">請選擇</option>
+                  {sameNameContacts.map((contact) => (
+                    <option value={contact.id} key={contact.id}>{contact.name}｜{contact.phone || contact.line || contact.createdAt}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {Object.keys(parsedFieldLabels).map((key) => {
+              const field = key as ParsedFieldKey;
+              const isLong = ["summary", "insight", "finalContent"].includes(field);
+              return isLong ? (
+                <EditorTextarea key={field} label={`${parsedFieldLabels[field]}${requiredParsedFields.includes(field) ? " *" : ""}`} value={draft[field]} onChange={(value) => updateDraft(field, value)} />
+              ) : (
+                <EditorInput key={field} label={`${parsedFieldLabels[field]}${requiredParsedFields.includes(field) ? " *" : ""}`} value={draft[field]} onChange={(value) => updateDraft(field, value)} />
+              );
+            })}
+            <div className="preview-actions">
+              <button type="button" onClick={confirmCreate} disabled={submitting || hasDuplicateSource}>
+                {submitting ? "建立中..." : "確認並建立案件"}
+              </button>
+              <button type="button" onClick={() => setDraft(null)}>回去修改原文</button>
+              <button type="button" onClick={onClose}>取消</button>
+            </div>
+          </div>
+        )}
+      </section>
+    </div>
+  );
 }
 
 function OperatingJourneyDetailPage({
