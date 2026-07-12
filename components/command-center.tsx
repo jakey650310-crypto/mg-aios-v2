@@ -66,6 +66,11 @@ type ParsedChatGptImport = Record<ParsedFieldKey, string> & {
   sourceHash: string;
   dateWarning: string;
   selectedContactId: string;
+  caseTypeConfirmed: boolean;
+  caseRoleConfirmed: boolean;
+  possibleExistingCaseId: string;
+  archiveMode: "new" | "update";
+  autoFilledCount: number;
 };
 
 const parsedFieldLabels: Record<ParsedFieldKey, string> = {
@@ -82,7 +87,7 @@ const parsedFieldLabels: Record<ParsedFieldKey, string> = {
   finalContent: "最終文案或話術",
 };
 
-const requiredParsedFields: ParsedFieldKey[] = ["contact", "caseTitle", "caseType", "caseRole", "nextStep"];
+const requiredParsedFields: ParsedFieldKey[] = ["contact", "caseTitle", "nextStep"];
 
 const moduleLabels: Record<OperatingModuleKey, { title: string; subtitle: string }> = {
   dashboard: { title: "首頁", subtitle: "AI 今日工作中心" },
@@ -2289,6 +2294,22 @@ const structuredInputExample = `請貼上 ChatGPT 整理結果，例如：
 【最終文案或話術】
 王先生，我今天剛好整理到附近近期成交...`;
 
+function emptyParsedFields(): Record<ParsedFieldKey, string> {
+  return {
+    contact: "",
+    property: "",
+    caseTitle: "",
+    caseType: "",
+    caseRole: "",
+    summary: "",
+    insight: "",
+    stage: "",
+    nextStep: "",
+    reminderDate: "",
+    finalContent: "",
+  };
+}
+
 function parseStructuredText(sourceText: string): ParsedChatGptImport {
   const fieldMap: Record<string, ParsedFieldKey> = {
     聯絡人: "contact",
@@ -2303,19 +2324,7 @@ function parseStructuredText(sourceText: string): ParsedChatGptImport {
     提醒日期: "reminderDate",
     最終文案或話術: "finalContent",
   };
-  const result: Record<ParsedFieldKey, string> = {
-    contact: "",
-    property: "",
-    caseTitle: "",
-    caseType: "",
-    caseRole: "",
-    summary: "",
-    insight: "",
-    stage: "",
-    nextStep: "",
-    reminderDate: "",
-    finalContent: "",
-  };
+  const result = emptyParsedFields();
   const matches = Array.from(sourceText.matchAll(/【([^】]+)】/g));
   matches.forEach((match, index) => {
     const label = match[1].trim();
@@ -2326,13 +2335,97 @@ function parseStructuredText(sourceText: string): ParsedChatGptImport {
     result[field] = sourceText.slice(start, end).trim();
   });
 
+  const hasStructuredFields = matches.some((match) => fieldMap[match[1].trim()]);
+  const natural = hasStructuredFields ? emptyParsedFields() : parseNaturalText(sourceText);
+  const merged = Object.fromEntries(Object.keys(result).map((key) => {
+    const field = key as ParsedFieldKey;
+    return [field, result[field] || natural[field]];
+  })) as Record<ParsedFieldKey, string>;
+  const typeSuggestion = inferCaseTypeSuggestion(merged.caseType || sourceText) || merged.caseType;
+  const roleSuggestion = inferCaseRoleSuggestion(merged.caseRole || sourceText) || merged.caseRole;
+  if (!merged.caseTitle && (merged.contact || merged.property)) {
+    const journeyLabel = roleSuggestion === "買方" ? "買方追蹤" : roleSuggestion === "屋主" ? "屋主追蹤" : roleSuggestion === "承租方" ? "租客追蹤" : "追蹤";
+    merged.caseTitle = [merged.contact, merged.property, journeyLabel].filter(Boolean).join("｜");
+  }
+  const autoFilledCount = Object.values(merged).filter((value) => value.trim()).length;
   return {
-    ...result,
+    ...merged,
+    caseType: typeSuggestion,
+    caseRole: roleSuggestion,
     sourceText,
     sourceHash: hashText(sourceText.trim()),
-    dateWarning: validateReminderDate(result.reminderDate),
+    dateWarning: validateReminderDate(merged.reminderDate),
     selectedContactId: "",
+    caseTypeConfirmed: false,
+    caseRoleConfirmed: false,
+    possibleExistingCaseId: "",
+    archiveMode: "new",
+    autoFilledCount,
   };
+}
+
+function parseNaturalText(sourceText: string): Record<ParsedFieldKey, string> {
+  const result = emptyParsedFields();
+  const lines = sourceText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const firstMatch = (patterns: RegExp[]) => {
+    for (const pattern of patterns) {
+      const match = sourceText.match(pattern);
+      if (match?.[1]) return match[1].trim().replace(/[。；;，,]+$/, "");
+    }
+    return "";
+  };
+
+  result.contact = firstMatch([
+    /(?:客戶|買方|屋主|房東|租客|姓名|聯絡人|名字)\s*[:：]\s*([^\n。；;]+)/,
+    /(?:客戶|買方|屋主|房東|租客)\s+([^\s，。；;]+)(?:，|,|\s|。)/,
+  ]);
+  result.contact = result.contact.split(/[，,。；;]/)[0].trim();
+  if (!result.contact) {
+    const named = sourceText.match(/([\u4e00-\u9fff]{2,4}(?:先生|小姐|女士))/);
+    result.contact = named?.[1] || "";
+  }
+
+  result.property = firstMatch([
+    /(?:社區|物件|建案|大樓名稱)\s*[:：]\s*([^\n。；;]+)/,
+    /目前(?:鎖定|考慮|看中|關注)\s*([^，。,。；;]+)/,
+    /(?:社區|物件)為\s*([^，。,。；;]+)/,
+  ]);
+
+  const address = firstMatch([/(?:地址|位於|位置)\s*[:：]?\s*([^\n。；;]+)/]);
+  if (!result.property && address) result.property = address;
+
+  const summaryLines = lines.filter((line) => !/(?:客戶|買方|屋主|房東|租客|下一步|待確認|預計|安排|詢問|聯絡|追蹤|提醒日期|日期)\s*[:：]/.test(line));
+  result.summary = summaryLines.slice(0, 3).join("\n").slice(0, 360);
+  result.insight = firstMatch([
+    /(?:客戶特性|重要發現|洞察|重視|真正關心)\s*[:：]?\s*([^\n。]+)/,
+  ]);
+  result.nextStep = firstMatch([
+    /(?:下一步|待確認|預計|準備|詢問|聯絡|安排|追蹤|回覆)\s*[:：]\s*([^\n]+)/,
+    /(?:待確認|需要|應該|建議)\s*([^\n。；;]+)/,
+  ]);
+  result.stage = firstMatch([/(?:目前階段|進度|狀態|看屋狀況)\s*[:：]?\s*([^\n。；;]+)/]);
+  const viewingLine = lines.find((line) => line.startsWith("看屋狀況"));
+  if (viewingLine && /待確認/.test(viewingLine)) result.stage = "待確認看屋時間";
+  result.reminderDate = firstMatch([/(?:提醒日期|追蹤日期|下次聯絡|日期)\s*[:：]\s*([^\n]+)/]);
+  result.finalContent = firstMatch([/(?:最終文案|話術|LINE回覆|LINE內容)\s*[:：]\s*([^\n]+)/]);
+  return result;
+}
+
+function inferCaseTypeSuggestion(value: string) {
+  if (/出租|承租|月租|租客|房東|租賃/.test(value)) return "租賃案件";
+  if (/修繕|報修|保固/.test(value)) return "修繕案件";
+  if (/想買|購屋|看房|看屋|預算|需求|兩房|三房|車位|買方/.test(value)) return "購屋案件";
+  if (/買賣/.test(value)) return "買賣案件";
+  if (/想賣|委售|售屋|開價|底價/.test(value)) return "售屋案件";
+  return "";
+}
+
+function inferCaseRoleSuggestion(value: string) {
+  if (/租客|承租|找房|想租/.test(value)) return "承租方";
+  if (/房東|出租|租賃/.test(value)) return "出租方";
+  if (/買方|想買|購屋|看屋|預算|需求|兩房|三房|車位/.test(value)) return "買方";
+  if (/屋主|委售|售屋|想賣/.test(value)) return "屋主";
+  return "";
 }
 
 function validateReminderDate(value: string) {
@@ -2398,9 +2491,11 @@ function ChatGptImportSheet({
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [parsing, setParsing] = useState(false);
   const sameNameContacts = draft ? state.contacts.filter((contact) => contact.name === draft.contact.trim()) : [];
   const missingFields = draft ? requiredParsedFields.filter((field) => !draft[field].trim()) : [];
   const hasDuplicateSource = draft ? state.cases.some((caseItem) => caseItem.sourceContentHash === draft.sourceHash) : false;
+  const possibleExistingCase = draft?.possibleExistingCaseId ? state.cases.find((caseItem) => caseItem.id === draft.possibleExistingCaseId) : undefined;
 
   useEffect(() => {
     if (!toast) return;
@@ -2408,17 +2503,30 @@ function ChatGptImportSheet({
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  function parseInput() {
+  async function parseInput() {
     setError("");
     if (!sourceText.trim()) {
       setError("請先貼上 ChatGPT 整理結果。");
       return;
     }
+    setParsing(true);
+    setToast("正在整理案件資料");
+    await new Promise((resolve) => window.setTimeout(resolve, 180));
     const parsed = parseStructuredText(sourceText);
+    const existing = state.cases.find((caseItem) => {
+      const titleMatch = parsed.caseTitle && caseItem.title.includes(parsed.caseTitle);
+      const propertyMatch = parsed.property && state.properties.some((property) => property.id === caseItem.propertyId && (property.community === parsed.property || property.address === parsed.property));
+      const contactMatch = parsed.contact && state.journeys.some((journey) => journey.id && journey.contactIds.some((contactId) => state.contacts.some((contact) => contact.id === contactId && contact.name === parsed.contact)) && caseItem.journeyIds.includes(journey.id));
+      return Boolean(titleMatch || (propertyMatch && contactMatch));
+    });
+    const nextDraft = { ...parsed, possibleExistingCaseId: existing?.id || "" };
     if (state.cases.some((caseItem) => caseItem.sourceContentHash === parsed.sourceHash)) {
       setError("這份整理結果已經建立過案件，不會重複寫入。");
     }
-    setDraft(parsed);
+    setDraft(nextDraft);
+    setParsing(false);
+    setToast("");
+    window.setTimeout(() => document.querySelector("[data-confirm-target]")?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
   }
 
   function updateDraft(field: ParsedFieldKey, value: string) {
@@ -2430,7 +2538,11 @@ function ChatGptImportSheet({
     setError("");
     const missing = requiredParsedFields.filter((field) => !draft[field].trim());
     if (missing.length) {
-      setError(`請補齊必要欄位：${missing.map((field) => parsedFieldLabels[field]).join("、")}`);
+      setError(`尚有 ${missing.length} 個欄位無法自動整理，請確認：${missing.map((field) => parsedFieldLabels[field]).join("、")}`);
+      return;
+    }
+    if (!draft.caseTypeConfirmed || !draft.caseRoleConfirmed) {
+      setError("請確認案件類型與使用者指定身分後再歸檔。");
       return;
     }
     if (hasDuplicateSource) {
@@ -2444,7 +2556,7 @@ function ChatGptImportSheet({
 
     setSubmitting(true);
     const now = nowIso();
-    const caseId = crypto.randomUUID();
+    const caseId = draft.archiveMode === "update" && draft.possibleExistingCaseId ? draft.possibleExistingCaseId : crypto.randomUUID();
     const eventId = crypto.randomUUID();
     const journeyId = crypto.randomUUID();
     let createdCase: CaseModel | null = null;
@@ -2476,6 +2588,8 @@ function ChatGptImportSheet({
         ? current.properties.find((property) => property.community === draft.property.trim() || property.address === draft.property.trim())
         : undefined;
       const propertyId = draft.property.trim() ? (existingProperty?.id || crypto.randomUUID()) : "";
+      const existingCase = draft.archiveMode === "update" ? current.cases.find((item) => item.id === caseId) : undefined;
+      const resolvedPropertyId = propertyId || existingCase?.propertyId || "";
       const property = existingProperty || (draft.property.trim()
         ? {
             id: propertyId,
@@ -2503,7 +2617,7 @@ function ChatGptImportSheet({
       const journey = {
         id: journeyId,
         type: journeyTypeFromCase(caseType, caseRole),
-        propertyId,
+        propertyId: resolvedPropertyId,
         contactIds: [contactId],
         currentStage: draft.stage || "待確認",
         nextStep: draft.nextStep,
@@ -2522,7 +2636,7 @@ function ChatGptImportSheet({
       const event = {
         id: eventId,
         title: `建立案件：${draft.caseTitle}`,
-        propertyId,
+        propertyId: resolvedPropertyId,
         caseId,
         contactIds: [contactId],
         eventType: "AI分析" as const,
@@ -2544,9 +2658,56 @@ function ChatGptImportSheet({
         createdAt: now,
         updatedAt: now,
       };
+      if (existingCase) {
+        const existingJourney = current.journeys.find((journey) => existingCase.journeyIds.includes(journey.id));
+        const updatedCase: CaseModel = {
+          ...existingCase,
+          propertyId: resolvedPropertyId,
+          type: caseType,
+          caseRole,
+          title: draft.caseTitle.trim() || existingCase.title,
+          currentStage: draft.stage || existingCase.currentStage,
+          nextStep: draft.nextStep || existingCase.nextStep,
+          reminderDate: parseDateValue(draft.reminderDate) || draft.reminderDate || existingCase.reminderDate,
+          sourceContentHash: draft.sourceHash,
+          timeline: [...existingCase.timeline, "更新案件：貼上 ChatGPT 整理結果"],
+          eventIds: [eventId, ...existingCase.eventIds],
+          notes: draft.finalContent || existingCase.notes,
+          aiSummary: draft.summary || existingCase.aiSummary,
+          aiInsight: draft.insight || existingCase.aiInsight,
+          aiBrain: draft.insight || existingCase.aiBrain,
+          updatedAt: now,
+        };
+        createdCase = updatedCase;
+        return {
+          ...current,
+          contacts: linkedContact
+            ? current.contacts.map((item) => item.id === linkedContact.id ? { ...item, aiSummary: draft.summary || item.aiSummary, updatedAt: now } : item)
+            : [contact, ...current.contacts],
+          cases: current.cases.map((item) => item.id === existingCase.id ? updatedCase : item),
+          journeys: existingJourney
+            ? current.journeys.map((item) => item.id === existingJourney.id ? {
+                ...item,
+                propertyId: resolvedPropertyId,
+                contactIds: [contactId, ...item.contactIds.filter((id) => id !== contactId)],
+                currentStage: draft.stage || item.currentStage,
+                nextStep: draft.nextStep || item.nextStep,
+                reminderDate: parseDateValue(draft.reminderDate) || draft.reminderDate || item.reminderDate,
+                aiSuggestion: draft.summary || draft.insight || item.aiSuggestion,
+                updatedAt: now,
+              } : item)
+            : current.journeys,
+          properties: property
+            ? existingProperty
+              ? current.properties.map((item) => item.id === existingProperty.id ? { ...item, caseIds: [caseId, ...(item.caseIds || []).filter((id) => id !== caseId)], updatedAt: now } : item)
+              : [property, ...current.properties]
+            : current.properties,
+          calendarEvents: [event, ...current.calendarEvents],
+        };
+      }
       const nextCase: CaseModel = {
         id: caseId,
-        propertyId,
+        propertyId: resolvedPropertyId,
         type: caseType,
         caseRole,
         title: draft.caseTitle.trim(),
@@ -2592,8 +2753,11 @@ function ChatGptImportSheet({
 
     window.setTimeout(() => {
       setSubmitting(false);
-      setToast("✓ 已建立案件");
+      setToast("✓ 案件已完成歸檔");
       if (createdCase) {
+        setSourceText("");
+        setDraft(null);
+        setError("");
         onOpenCase(createdCase);
         onClose();
       }
@@ -2631,11 +2795,22 @@ function ChatGptImportSheet({
           <div className="ai-preview">
             <div className="ai-preview-head">
               <strong>分類預覽</strong>
-              <span>{missingFields.length ? `缺少 ${missingFields.length} 個必要欄位` : "必要欄位已完成"}</span>
+              <span>已自動整理 {draft.autoFilledCount} 個欄位，尚有 {Number(!draft.caseTypeConfirmed) + Number(!draft.caseRoleConfirmed)} 個欄位需要確認</span>
             </div>
+            <p className="preview-summary">系統已先填入可辨識資料；案件類型與使用者指定身分只提供建議，請確認後再歸檔。</p>
             {hasDuplicateSource && <p className="form-error">這份整理結果已建立過案件，系統已阻止重複寫入。</p>}
             {error && <p className="form-error">{error}</p>}
             {draft.dateWarning && <p className="form-error">{draft.dateWarning}</p>}
+            {possibleExistingCase && !hasDuplicateSource && (
+              <div className="existing-case-warning">
+                <strong>可能是既有案件</strong>
+                <span>找到「{possibleExistingCase.title}」，請選擇要更新或建立新案件。</span>
+                <select value={draft.archiveMode} onChange={(event) => setDraft((current) => current ? { ...current, archiveMode: event.target.value as "new" | "update" } : current)}>
+                  <option value="new">建立新案件</option>
+                  <option value="update">更新既有案件</option>
+                </select>
+              </div>
+            )}
             {sameNameContacts.length > 1 && (
               <label>
                 <span>同名聯絡人，請選擇關聯對象</span>
@@ -2650,6 +2825,20 @@ function ChatGptImportSheet({
             {Object.keys(parsedFieldLabels).map((key) => {
               const field = key as ParsedFieldKey;
               const isLong = ["summary", "insight", "finalContent"].includes(field);
+              if (field === "caseType" || field === "caseRole") {
+                const isType = field === "caseType";
+                const confirmed = isType ? draft.caseTypeConfirmed : draft.caseRoleConfirmed;
+                const options = isType ? ["購屋案件", "售屋案件", "買賣案件", "租賃案件", "修繕案件"] : ["買方", "屋主", "出租方", "承租方", "廠商", "介紹人", "其他"];
+                return (
+                  <label key={field} className="confirm-field" data-confirm-target={!confirmed ? "true" : undefined}>
+                    <span>{parsedFieldLabels[field]}（建議：{draft[field] || "未辨識"}）</span>
+                    <select value={draft[field]} onChange={(event) => setDraft((current) => current ? { ...current, [field]: event.target.value, ...(isType ? { caseTypeConfirmed: true } : { caseRoleConfirmed: true }) } : current)}>
+                      <option value="">請選擇確認</option>
+                      {options.map((option) => <option value={option} key={option}>{option}</option>)}
+                    </select>
+                  </label>
+                );
+              }
               return isLong ? (
                 <EditorTextarea key={field} label={`${parsedFieldLabels[field]}${requiredParsedFields.includes(field) ? " *" : ""}`} value={draft[field]} onChange={(value) => updateDraft(field, value)} />
               ) : (
@@ -2658,7 +2847,7 @@ function ChatGptImportSheet({
             })}
             <div className="preview-actions">
               <button type="button" onClick={confirmCreate} disabled={submitting || hasDuplicateSource}>
-                {submitting ? "建立中..." : "確認並建立案件"}
+                {submitting ? "歸檔中..." : "確認並歸檔"}
               </button>
               <button type="button" onClick={() => setDraft(null)}>回去修改原文</button>
               <button type="button" onClick={onClose}>取消</button>
