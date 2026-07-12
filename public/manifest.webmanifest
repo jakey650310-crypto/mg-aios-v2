@@ -1,0 +1,25 @@
+{
+  "name": "MG-AIOS｜AI 房仲工作平台",
+  "short_name": "MG-AIOS",
+  "description": "AI 房仲工作平台，協助整理、提醒與推進成交工作。",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7faf7",
+  "theme_color": "#17653a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

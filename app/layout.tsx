@@ -2,9 +2,22 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MG-AIOS｜AI 房仲作戰中心",
-  description: "每天早上打開就知道今天該做什麼的 AI 房仲作戰中心",
+  title: "MG-AIOS",
+  description: "AI 房仲工作平台，協助整理、提醒與推進成交工作。",
   applicationName: "MG-AIOS",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "MG-AIOS",
+    statusBarStyle: "default",
+  },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {
