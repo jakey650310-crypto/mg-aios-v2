@@ -184,6 +184,15 @@ button { cursor: pointer; }
 .module-overview-card strong { font-size: 14px; }
 .module-overview-card small { color: var(--muted); font-size: 11px; line-height: 1.35; }
 .module-overview-card b { grid-column: 1 / -1; color: var(--brand-strong); font-size: 18px; }
+.external-tools-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.external-tool-card { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 10px; align-items: center; width: 100%; min-height: 112px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); text-align: left; }
+.external-tool-card:active { transform: translateY(1px); }
+.external-tool-icon { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 8px; background: var(--brand-soft); color: var(--brand); }
+.external-tool-icon svg { width: 19px; }
+.external-tool-card > span:nth-child(2) { display: grid; min-width: 0; gap: 4px; }
+.external-tool-card strong { font-size: 16px; }
+.external-tool-card small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.external-tool-card b { grid-column: 1 / -1; min-height: 38px; padding: 9px 10px; border-radius: 7px; background: var(--brand); color: white; text-align: center; font-size: 13px; }
 .ai-priority-list { display: grid; gap: 8px; }
 .ai-priority-card { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; min-height: 82px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); text-align: left; }
 .ai-priority-card > b { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 8px; background: var(--brand); color: white; }
@@ -350,6 +359,10 @@ button { cursor: pointer; }
 .backlog-form input, .backlog-form select, .backlog-form textarea { width: 100%; border: 1px solid #bcc8bf; border-radius: 7px; background: white; font-size: 16px; }
 .backlog-form input, .backlog-form select { min-height: 54px; padding: 0 13px; }
 .backlog-form textarea { min-height: 128px; padding: 12px 13px; resize: vertical; line-height: 1.55; }
+
+@media (max-width: 520px) {
+  .external-tools-grid { grid-template-columns: 1fr; }
+}
 
 @media (min-width: 760px) {
   .app-shell { padding-inline: 28px; }

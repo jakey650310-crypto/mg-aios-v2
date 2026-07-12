@@ -43,6 +43,7 @@ import type {
   RepairModel,
 } from "@/lib/types";
 import { buildCaseContext, buildPromptFromTemplate } from "@/lib/context-builder";
+import { externalTools, openExternalTool as launchExternalTool, type ExternalToolKey } from "@/lib/external-tools";
 import { useOperatingSystem } from "@/lib/use-operating-system";
 
 type OperatingModuleKey = "dashboard" | "property" | "contact" | "journey" | "repair" | "marketing" | "closing" | "documents" | "ai";
@@ -142,6 +143,7 @@ export function CommandCenter() {
   const [activeJourney, setActiveJourney] = useState<OperatingJourneyModel | null>(null);
   const [activeCase, setActiveCase] = useState<CaseModel | null>(null);
   const [showInbox, setShowInbox] = useState(false);
+  const [externalToolMessage, setExternalToolMessage] = useState("");
 
   const state = operatingSystem.state;
   const topFive = useMemo(() => {
@@ -229,6 +231,14 @@ export function CommandCenter() {
     setActiveJourney(null);
   }
 
+  function openConfiguredTool(tool: ExternalToolKey) {
+    if (!launchExternalTool(tool)) {
+      setExternalToolMessage(`尚未設定${externalTools[tool].label}連結`);
+      return;
+    }
+    setExternalToolMessage("");
+  }
+
   function acceptDraft(draft: AiJourneyDraft) {
     const id = crypto.randomUUID();
     const firstProperty = state.properties[0];
@@ -309,6 +319,15 @@ export function CommandCenter() {
             <PriorityCaseCard key={`${item.type}-${item.id}`} item={item} index={index} state={state} onOpen={() => openPriorityItem(item)} />
           ))}
         </div>
+      </section>
+
+      <section className="decision-section">
+        <SectionTitle icon={Home} title="住商工作工具" count={2} hint="住商日常物件、客戶與工作任務入口" />
+        <div className="external-tools-grid">
+          <ToolEntryCard tool="ieasy" onOpen={openConfiguredTool} />
+          <ToolEntryCard tool="aiEcosystem" onOpen={openConfiguredTool} />
+        </div>
+        {externalToolMessage && <p className="form-error">{externalToolMessage}</p>}
       </section>
 
       <section className="decision-section">
@@ -436,6 +455,20 @@ function Metric({ label, value }: { label: string; value: string }) {
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
+  );
+}
+
+function ToolEntryCard({ tool, onOpen }: { tool: "ieasy" | "aiEcosystem"; onOpen: (tool: ExternalToolKey) => void }) {
+  const config = externalTools[tool];
+  return (
+    <button className="external-tool-card" type="button" onClick={() => onOpen(tool)}>
+      <span className="external-tool-icon"><Home /></span>
+      <span>
+        <strong>{config.label}</strong>
+        <small>{config.description}</small>
+      </span>
+      <b>開啟</b>
+    </button>
   );
 }
 
@@ -1862,16 +1895,10 @@ function CaseDetailPage({
     window.open(urls[tool], "_blank", "noopener,noreferrer");
   }
 
-  function openExternalTool(tool: "chatgpt" | "hbhousing" | "line" | "googleCalendar" | "591" | "facebook") {
-    const urls = {
-      chatgpt: "https://chatgpt.com/",
-      hbhousing: "https://www.hbhousing.com.tw/",
-      line: "https://line.me/",
-      googleCalendar: "https://calendar.google.com/calendar/u/0/r",
-      "591": "https://www.591.com.tw/",
-      facebook: "https://www.facebook.com/",
-    };
-    window.open(urls[tool], "_blank", "noopener,noreferrer");
+  function openExternalTool(tool: ExternalToolKey) {
+    if (!launchExternalTool(tool)) {
+      setAiMessage(`尚未設定${externalTools[tool].label}連結`);
+    }
   }
 
   function parseAiResponse() {
@@ -1994,10 +2021,11 @@ function CaseDetailPage({
         <section className="crm-section">
           <h3>外部工具入口</h3>
           <div className="marketing-actions">
+            <button type="button" onClick={() => openExternalTool("ieasy")}>開啟住商 ieasy+</button>
+            <button type="button" onClick={() => openExternalTool("aiEcosystem")}>開啟 AI 生態圈</button>
             <button type="button" onClick={() => openExternalTool("chatgpt")}>開啟 ChatGPT</button>
-            <button type="button" onClick={() => openExternalTool("hbhousing")}>開啟住商 AI 生態圈</button>
-            <button type="button" onClick={() => openExternalTool("line")}>開啟 LINE</button>
             <button type="button" onClick={() => openExternalTool("googleCalendar")}>開啟 Google Calendar</button>
+            <button type="button" onClick={() => openExternalTool("line")}>開啟 LINE</button>
             <button type="button" onClick={() => openExternalTool("591")}>開啟 591</button>
             <button type="button" onClick={() => openExternalTool("facebook")}>開啟 Facebook</button>
           </div>
