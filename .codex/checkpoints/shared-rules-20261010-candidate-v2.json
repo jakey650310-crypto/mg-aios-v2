@@ -1,0 +1,21 @@
+{
+  "checkpoint_id": "MINGGUANG_SHARED_RULES_PUBLIC_CANDIDATE_20261010_V2",
+  "utc": "2026-10-10T02:21:08.776630+00:00",
+  "scope": "Repository workflow rules; no property/customer/research records",
+  "status": "BLOCKED_AUTHORIZATION_UNVERIFIED",
+  "rules_sha256": "60db3efcd5fbc1b47257eb5f23a906dda84b958af97c92976ab9ccc1df00dea9",
+  "reused_policy_checks": {
+    "pass": 8,
+    "total": 8,
+    "rerun": false
+  },
+  "reused_local_loader_probes": {
+    "pass": 2,
+    "total": 2,
+    "scope": "local CLI prompt loader only",
+    "rerun": false
+  },
+  "new_cloud_task_verification": "NOT_TESTED",
+  "github_publication": "NOT_PERFORMED",
+  "next_step": "Verify official integration repository access and Contents write authorization before publication; then read back bytes and validate a new cloud task."
+}
